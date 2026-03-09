@@ -1,0 +1,1100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="TherapyLog"/>
+<meta name="theme-color" content="#07060f"/>
+<title>TherapyLog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body,#root{height:100%;width:100%;margin:0;padding:0;overflow:hidden;position:fixed;top:0;left:0;right:0;bottom:0;background:#07060f}
+@supports(-webkit-touch-callout:none){html,body,#root{height:-webkit-fill-available}}
+body{font-family:'Outfit',sans-serif;color:#e8e4f0;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+input,button,textarea,select{font-family:'Outfit',sans-serif}
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6) sepia(1) saturate(3) hue-rotate(230deg)}
+::-webkit-scrollbar{display:none}
+.sheet-head{padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:12px;flex-shrink:0}
+.sheet-footer{padding-bottom:max(20px,env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-top:12px}
+.tab-bar{padding-bottom:max(12px,env(safe-area-inset-bottom,0px))}
+.main-scroll{padding-bottom:max(100px,calc(80px + env(safe-area-inset-bottom,0px)));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.fade-up{animation:fadeUp .3s ease both}
+textarea{resize:none;outline:none}
+
+@media(orientation:landscape) and (max-height:500px){#root{display:none!important}#landscape-lock{display:flex!important}}
+#landscape-lock{display:none;position:fixed;inset:0;background:#08080d;z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:'Outfit',sans-serif;color:#94a3b8;font-size:14px;text-align:center;padding:20px}
+</style>
+<link rel="manifest" href="./manifest.json"/>
+<link rel="apple-touch-icon" href="./icon.svg"/>
+</head>
+<body>
+<div id="landscape-lock"><div style="font-size:32px">🔄</div><div>Please rotate your device to portrait mode</div></div>
+<div id="root"><div style="display:flex;align-items:center;justify-content:center;height:100vh;flex-direction:column;gap:16px;color:#818cf8"><div style="font-size:32px">🧠</div><div style="font-family:'JetBrains Mono',monospace;font-size:13px;opacity:.5">Loading...</div></div></div>
+<script>
+var loadStatus={};
+function loadScript(url,name){
+  return new Promise(function(resolve,reject){
+    var s=document.createElement('script');s.src=url;s.crossOrigin='anonymous';
+    s.onload=function(){loadStatus[name]='ok';resolve();};
+    s.onerror=function(){loadStatus[name]='FAILED';reject(new Error(name+' failed from '+url));};
+    document.head.appendChild(s);
+  });
+}
+function showError(msg){
+  document.getElementById('root').innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;padding:24px;text-align:center;gap:12px;background:#07060f"><div style="font-size:28px">🚫</div><div style="color:#f87171;font-family:monospace;font-size:13px;line-height:1.6;max-width:320px">'+msg+'</div><div style="color:#64748b;font-size:11px">Check your internet connection and reload</div></div>';
+}
+(function(){
+  loadScript('https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js','React')
+  .catch(function(){return loadScript('https://unpkg.com/react@18/umd/react.production.min.js','React');})
+  .then(function(){
+    return loadScript('https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js','ReactDOM')
+    .catch(function(){return loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js','ReactDOM');});
+  })
+  .then(function(){
+    return loadScript('https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js','Recharts')
+    .catch(function(){return loadScript('https://unpkg.com/recharts@2.5.0/umd/Recharts.js','Recharts');});
+  })
+  .then(function(){
+    return loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.0/babel.min.js','Babel')
+    .catch(function(){return loadScript('https://unpkg.com/@babel/standalone@7.24.0/babel.min.js','Babel');});
+  })
+  .then(function(){
+    if(typeof React==='undefined')throw new Error('React not available');
+    if(typeof Babel==='undefined')throw new Error('Babel not available');
+    var src=document.getElementById('app-src');
+    if(!src)throw new Error('App source not found');
+    var compiled;
+    try{compiled=Babel.transform(src.textContent,{presets:[['react',{runtime:'classic'}]],filename:'app.jsx'}).code;}
+    catch(e){throw new Error('Compile error: '+e.message.slice(0,120));}
+    try{new Function(compiled)();}
+    catch(e){throw new Error('Runtime error: '+e.message.slice(0,120));}
+  })
+  .catch(function(e){showError(e.message);});
+})();
+</script>
+<script type="text/plain" id="app-src">
+const{useState,useEffect,useReducer,useCallback,useMemo,useRef,memo}=React;
+const{LineChart,Line,AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine}=Recharts;
+
+const LS={get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const Cookie={get:(n)=>{const m=document.cookie.match(new RegExp("(^| )"+n+"=([^;]+)"));return m?decodeURIComponent(m[2]):null;}};
+const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+const today=()=>new Date().toISOString().split("T")[0];
+const ago=(n)=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split("T")[0];};
+const fmtFull=(d)=>{try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}};
+const fmtShort=(d)=>{try{const dt=new Date(d+"T12:00:00");return`${dt.getMonth()+1}/${dt.getDate()}`;}catch(e){return d;}};
+const fmtTime=()=>new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+
+
+// ─── Theme ───
+const DARK={
+  bg:"#07060f",card:"rgba(129,140,248,0.04)",cardBorder:"rgba(129,140,248,0.1)",
+  accent:"#818cf8",accent2:"#c084fc",warm:"#fb923c",danger:"#f43f5e",green:"#34d399",
+  text:"#e8e4f0",text2:"#a099b8",text3:"#5c5475",
+  font:"'Outfit',sans-serif",mono:"'JetBrains Mono',monospace",
+  sheetBg:"linear-gradient(180deg,#12102a,#07060f)",navBg:"rgba(7,6,15,0.95)",mode:"dark"
+};
+const LIGHT={
+  bg:"#f5f3ff",card:"rgba(99,102,241,0.04)",cardBorder:"rgba(99,102,241,0.12)",
+  accent:"#4f46e5",accent2:"#7c3aed",warm:"#d97706",danger:"#dc2626",green:"#059669",
+  text:"#1e1b4b",text2:"#4338ca",text3:"#8b8ba7",
+  font:"'Outfit',sans-serif",mono:"'JetBrains Mono',monospace",
+  sheetBg:"linear-gradient(180deg,#ffffff,#f5f3ff)",navBg:"rgba(245,243,255,0.97)",mode:"light"
+};
+const V={...(LS.get("tl-theme")==="light"?LIGHT:DARK)};
+const setTheme=(m)=>{const t=m==="light"?LIGHT:DARK;Object.assign(V,t);LS.set("tl-theme",m);document.body.style.background=V.bg;document.body.style.color=V.text;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",V.bg);};
+
+const Haptic={light:()=>{try{navigator.vibrate?.(10);}catch(e){}},medium:()=>{try{navigator.vibrate?.(25);}catch(e){}},success:()=>{try{navigator.vibrate?.([10,30,10]);}catch(e){}},};
+
+// ─── IRON_RANKS — shared IRONLOG ecosystem ───
+const IRON_RANKS=[
+  {level:1,tier:"Bronze",name:"Bronze I",icon:"🥉",xpNeeded:0,color:"#cd7f32",tierColor:"#cd7f32"},
+  {level:2,tier:"Bronze",name:"Bronze II",icon:"🥉",xpNeeded:200,color:"#c87533",tierColor:"#cd7f32"},
+  {level:3,tier:"Bronze",name:"Bronze III",icon:"🥉",xpNeeded:500,color:"#b87333",tierColor:"#cd7f32"},
+  {level:4,tier:"Silver",name:"Silver I",icon:"🥈",xpNeeded:1000,color:"#94a3b8",tierColor:"#c0c0c0"},
+  {level:5,tier:"Silver",name:"Silver II",icon:"🥈",xpNeeded:1800,color:"#c0c0c0",tierColor:"#c0c0c0"},
+  {level:6,tier:"Silver",name:"Silver III",icon:"🥈",xpNeeded:2800,color:"#e2e8f0",tierColor:"#c0c0c0"},
+  {level:7,tier:"Gold",name:"Gold I",icon:"🥇",xpNeeded:4000,color:"#fbbf24",tierColor:"#f59e0b"},
+  {level:8,tier:"Gold",name:"Gold II",icon:"🥇",xpNeeded:5500,color:"#f59e0b",tierColor:"#f59e0b"},
+  {level:9,tier:"Gold",name:"Gold III",icon:"🥇",xpNeeded:7500,color:"#d97706",tierColor:"#f59e0b"},
+  {level:10,tier:"Platinum",name:"Platinum I",icon:"💠",xpNeeded:10000,color:"#67e8f9",tierColor:"#22d3ee"},
+  {level:11,tier:"Platinum",name:"Platinum II",icon:"💠",xpNeeded:13000,color:"#22d3ee",tierColor:"#22d3ee"},
+  {level:12,tier:"Platinum",name:"Platinum III",icon:"💠",xpNeeded:17000,color:"#06b6d4",tierColor:"#22d3ee"},
+  {level:13,tier:"Diamond",name:"Diamond I",icon:"💎",xpNeeded:22000,color:"#a5b4fc",tierColor:"#6366f1"},
+  {level:14,tier:"Diamond",name:"Diamond II",icon:"💎",xpNeeded:28000,color:"#6366f1",tierColor:"#6366f1"},
+  {level:15,tier:"Diamond",name:"Diamond III",icon:"💎",xpNeeded:35000,color:"#4f46e5",tierColor:"#6366f1"},
+  {level:16,tier:"Master",name:"Master I",icon:"⚔️",xpNeeded:43000,color:"#f87171",tierColor:"#f43f5e"},
+  {level:17,tier:"Master",name:"Master II",icon:"⚔️",xpNeeded:52000,color:"#f43f5e",tierColor:"#f43f5e"},
+  {level:18,tier:"Master",name:"Master III",icon:"⚔️",xpNeeded:63000,color:"#e11d48",tierColor:"#f43f5e"},
+  {level:19,tier:"Grandmaster",name:"Grandmaster I",icon:"👑",xpNeeded:76000,color:"#f9a8d4",tierColor:"#ec4899"},
+  {level:20,tier:"Grandmaster",name:"Grandmaster II",icon:"👑",xpNeeded:91000,color:"#ec4899",tierColor:"#ec4899"},
+  {level:21,tier:"Grandmaster",name:"Grandmaster III",icon:"👑",xpNeeded:108000,color:"#db2777",tierColor:"#ec4899"},
+  {level:22,tier:"Champion",name:"Champion I",icon:"🏆",xpNeeded:128000,color:"#fb923c",tierColor:"#f97316"},
+  {level:23,tier:"Champion",name:"Champion II",icon:"🏆",xpNeeded:150000,color:"#f97316",tierColor:"#f97316"},
+  {level:24,tier:"Champion",name:"Champion III",icon:"🏆",xpNeeded:175000,color:"#ea580c",tierColor:"#f97316"},
+  {level:25,tier:"Iron Legend",name:"Iron Legend I",icon:"⚜️",xpNeeded:205000,color:"#34d399",tierColor:"#10b981"},
+  {level:26,tier:"Iron Legend",name:"Iron Legend II",icon:"⚜️",xpNeeded:240000,color:"#10b981",tierColor:"#10b981"},
+  {level:27,tier:"Iron Legend",name:"Iron Legend III",icon:"⚜️",xpNeeded:280000,color:"#059669",tierColor:"#10b981"},
+  {level:28,tier:"Immortal",name:"Immortal I",icon:"🔱",xpNeeded:325000,color:"#c4b5fd",tierColor:"#8b5cf6"},
+  {level:29,tier:"Immortal",name:"Immortal II",icon:"🔱",xpNeeded:380000,color:"#8b5cf6",tierColor:"#8b5cf6"},
+  {level:30,tier:"Immortal",name:"Immortal III",icon:"🔱",xpNeeded:440000,color:"#7c3aed",tierColor:"#8b5cf6"},
+];
+
+// ─── TherapyLog XP Calculation ───
+function calcScore(s){
+  let xp=0;
+  const entries=s.entries||[];
+  // Check-ins: 20 XP each
+  xp+=entries.filter(e=>e.mood).length*20;
+  // Journal entries: 25 XP each
+  xp+=entries.filter(e=>e.type==="journal"||e.note).length*25;
+  // Gratitude: 5 XP each (cap 15 per day)
+  const gratByDay={};(s.gratitude||[]).forEach(g=>{gratByDay[g.date]=(gratByDay[g.date]||0)+1;});
+  Object.values(gratByDay).forEach(n=>xp+=Math.min(n,3)*5);
+  // Sessions: 50 XP each
+  xp+=(s.sessions||[]).length*50;
+  // Streak milestones
+  let streak=0;const days=new Set(entries.filter(e=>e.mood).map(e=>e.date));
+  for(let i=0;i<90;i++){const d=new Date();d.setDate(d.getDate()-i);if(days.has(d.toISOString().split("T")[0]))streak++;else break;}
+  if(streak>=7)xp+=100;if(streak>=14)xp+=200;if(streak>=30)xp+=500;
+  const rank=[...IRON_RANKS].reverse().find(r=>xp>=r.xpNeeded)||IRON_RANKS[0];
+  const nextRank=IRON_RANKS.find(r=>r.level===rank.level+1);
+  const xpIntoRank=xp-rank.xpNeeded;
+  const xpForNext=nextRank?(nextRank.xpNeeded-rank.xpNeeded):null;
+  const pct=xpForNext?Math.min(100,Math.round(xpIntoRank/xpForNext*100)):100;
+  return{xp,rank,nextRank,xpIntoRank,xpForNext,pct,streak};
+}
+
+// ─── TherapyLog Daily Missions ───
+function getDailyMissions(s){
+  const td=today();
+  const todayCheckin=(s.entries||[]).some(e=>e.date===td&&e.mood);
+  const todayJournal=(s.entries||[]).some(e=>e.date===td&&e.note&&e.note.length>30);
+  const todayGratCount=(s.gratitude||[]).filter(g=>g.date===td).length;
+  const sessionThisWeek=(()=>{const d=new Date();const wStart=new Date(d);wStart.setDate(d.getDate()-d.getDay());return(s.sessions||[]).some(sess=>sess.date>=wStart.toISOString().split("T")[0]);})();
+  const moodToday=(s.entries||[]).find(e=>e.date===td&&e.mood);
+  const goodMood=moodToday&&moodToday.mood>=7;
+  return[
+    {icon:"✅",title:"Daily Check-in",desc:"Complete today's mood check-in",xp:25,done:todayCheckin},
+    {icon:"📓",title:"Journal Entry",desc:"Write a journal entry (30+ chars)",xp:30,done:todayJournal},
+    {icon:"🌸",title:"3 Gratitudes",desc:"Log three things you're grateful for",xp:20,done:todayGratCount>=3},
+    {icon:"🛋️",title:"Log a Session",desc:"Record a therapy session this week",xp:50,done:sessionThisWeek},
+    {icon:"😊",title:"Good Mood Day",desc:"Check in with a mood of 7 or higher",xp:15,done:goodMood},
+    {icon:"🛡️",title:"Use Coping Tool",desc:"View the coping toolkit today",xp:10,done:!!((s._viewedCoping||{}).date===td)},
+  ];
+}
+
+// ─── Level-Up Detection Hook ───
+function useLevelUp(score,lsKey){
+  const {rank}=score;
+  const [celebrating,setCelebrating]=useState(false);
+  const [celebRank,setCelebRank]=useState(null);
+  useEffect(()=>{
+    const saved=parseInt(LS.get(lsKey)||"1");
+    if(rank.level>saved){
+      LS.set(lsKey,rank.level);
+      setCelebRank(rank);
+      setTimeout(()=>setCelebrating(true),400);
+    } else if(!LS.get(lsKey)){LS.set(lsKey,rank.level);}
+  },[rank.level]);
+  return{celebrating,celebRank,dismiss:()=>setCelebrating(false)};
+}
+
+// ─── IronScoreCard ───
+function IronScoreCard({score,compact}){
+  const {xp,rank,nextRank,xpIntoRank,xpForNext,pct}=score;
+  if(compact){
+    return(
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:34,height:34,borderRadius:10,background:`linear-gradient(135deg,${rank.color}30,${rank.tierColor}15)`,border:`2px solid ${rank.color}60`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>
+          {rank.icon}
+        </div>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:11,fontWeight:800,color:rank.color,lineHeight:1}}>{rank.name}</div>
+          <div style={{fontSize:9,color:V.text3,fontFamily:V.mono}}>{xp.toLocaleString()} XP</div>
+        </div>
+      </div>
+    );
+  }
+  return(
+    <div style={{background:`linear-gradient(135deg,${rank.color}12,${rank.tierColor}06)`,border:`1.5px solid ${rank.color}40`,borderRadius:16,padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{width:52,height:52,borderRadius:14,background:`linear-gradient(135deg,${rank.color}30,${rank.tierColor}15)`,border:`2.5px solid ${rank.color}70`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0,boxShadow:`0 0 16px ${rank.color}30`}}>
+            {rank.icon}
+          </div>
+          <div>
+            <div style={{fontSize:9,fontWeight:700,letterSpacing:2,color:rank.color,textTransform:"uppercase",opacity:.7}}>{rank.tier}</div>
+            <div style={{fontSize:18,fontWeight:900,color:rank.color,lineHeight:1.1}}>{rank.name}</div>
+            <div style={{fontSize:9,color:V.text3}}>Level {rank.level} of 30</div>
+          </div>
+        </div>
+        <div style={{textAlign:"right"}}>
+          <div style={{fontSize:20,fontWeight:900,fontFamily:V.mono,color:rank.color}}>{xp.toLocaleString()}</div>
+          <div style={{fontSize:9,color:V.text3}}>IRON XP</div>
+        </div>
+      </div>
+      {xpForNext&&(
+        <div>
+          <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+            <span style={{fontSize:9,color:V.text3}}>→ {nextRank?.name}</span>
+            <span style={{fontSize:9,color:rank.color,fontWeight:700,fontFamily:V.mono}}>{xpIntoRank.toLocaleString()} / {xpForNext.toLocaleString()} XP ({pct}%)</span>
+          </div>
+          <div style={{width:"100%",height:6,borderRadius:3,background:"rgba(255,255,255,0.05)"}}>
+            <div style={{height:"100%",borderRadius:3,width:pct+"%",background:`linear-gradient(90deg,${rank.color},${rank.tierColor})`,transition:"width .5s"}}/>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MissionsPanel ───
+function MissionsPanel({missions,onClose}){
+  const [show,setShow]=useState(false);
+  const done=missions.filter(m=>m.done).length;
+  const totalXp=missions.filter(m=>m.done).reduce((a,m)=>a+m.xp,0);
+  return(
+    <>
+      <div onClick={()=>setShow(true)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",borderRadius:12,background:done===missions.length?"rgba(52,211,153,0.08)":"rgba(255,255,255,0.03)",border:`1px solid ${done===missions.length?"rgba(52,211,153,0.25)":V.cardBorder}`,cursor:"pointer"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>⚡</span>
+          <div>
+            <div style={{fontSize:12,fontWeight:700,color:V.text}}>Daily Missions</div>
+            <div style={{fontSize:10,color:V.text3}}>{done}/{missions.length} complete · {totalXp} XP earned</div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:3}}>
+          {missions.slice(0,5).map((m,i)=>(
+            <div key={i} style={{width:6,height:6,borderRadius:3,background:m.done?"#34d399":"rgba(255,255,255,0.12)"}}/>
+          ))}
+        </div>
+      </div>
+      {show&&ReactDOM.createPortal(
+        <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9990,background:"linear-gradient(180deg,#0a0a1a,#050508)",display:"flex",flexDirection:"column"}}>
+          <div className="sheet-head" style={{flexShrink:0,display:"flex",alignItems:"center",gap:12,paddingLeft:16,paddingRight:16,borderBottom:`1px solid ${V.cardBorder}`,background:"rgba(8,8,13,0.98)"}}>
+            <button onClick={()=>setShow(false)} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",padding:"8px 4px",WebkitTapHighlightColor:"transparent",flexShrink:0}}>
+              <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={V.accent} strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+              <span style={{fontSize:14,color:V.accent,fontWeight:600}}>Back</span>
+            </button>
+            <h3 style={{margin:0,fontSize:16,color:V.text,fontFamily:V.font,fontWeight:700,flex:1,textAlign:"center",paddingRight:50}}>Daily Missions</h3>
+          </div>
+          <div style={{flex:1,overflowY:"auto",padding:20}}>
+            <div style={{textAlign:"center",marginBottom:16}}>
+              <div style={{fontSize:11,color:V.text3,marginBottom:4}}>TODAY'S PROGRESS</div>
+              <div style={{fontSize:28,fontWeight:900,color:done===missions.length?"#34d399":V.accent,fontFamily:V.mono}}>{done}<span style={{fontSize:14,color:V.text3}}>/{missions.length}</span></div>
+              {done===missions.length&&<div style={{fontSize:12,color:"#34d399",fontWeight:700,marginTop:4}}>🎉 All missions complete!</div>}
+            </div>
+            <div style={{width:"100%",height:6,borderRadius:3,background:"rgba(255,255,255,0.05)",marginBottom:20}}>
+              <div style={{height:"100%",borderRadius:3,width:(done/missions.length*100)+"%",background:"linear-gradient(90deg,#34d399,#22d3ee)",transition:"width .4s"}}/>
+            </div>
+            {missions.map((m,i)=>(
+              <div key={i} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,background:m.done?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",border:`1px solid ${m.done?"rgba(52,211,153,0.2)":V.cardBorder}`,marginBottom:8,transition:"all .2s"}}>
+                <div style={{width:32,height:32,borderRadius:10,background:m.done?"rgba(52,211,153,0.15)":"rgba(255,255,255,0.05)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0}}>
+                  {m.icon}
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:700,color:m.done?V.text:V.text2,textDecoration:m.done?"line-through":"none"}}>{m.title}</div>
+                  <div style={{fontSize:11,color:V.text3}}>{m.desc}</div>
+                </div>
+                <div style={{textAlign:"right",flexShrink:0}}>
+                  <div style={{fontSize:12,fontWeight:800,color:m.done?"#34d399":V.accent,fontFamily:V.mono}}>+{m.xp}</div>
+                  <div style={{fontSize:8,color:V.text3}}>XP</div>
+                  {m.done&&<div style={{fontSize:14,marginTop:2}}>✓</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// ─── Level-Up Celebration ───
+function LevelUpCelebration({rank,onDismiss}){
+  const [show,setShow]=useState(false);
+  useEffect(()=>{setTimeout(()=>setShow(true),50);},[]);
+  const dismiss=()=>{setShow(false);setTimeout(onDismiss,300);};
+  // Burst particles
+  const particles=Array.from({length:16},(_,i)=>({angle:i/16*360,color:[rank.color,"#fbbf24","#34d399","#60a5fa","#c084fc"][i%5]}));
+  return ReactDOM.createPortal(
+    <div onClick={dismiss} style={{position:"fixed",inset:0,zIndex:9998,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"center",justifyContent:"center",opacity:show?1:0,transition:"opacity .3s",backdropFilter:"blur(4px)"}}>
+      {/* Particles */}
+      <div style={{position:"absolute",top:"50%",left:"50%",pointerEvents:"none"}}>
+        {show&&particles.map((p,i)=>{const rad=p.angle*Math.PI/180;const dist=80+Math.random()*60;return(
+          <div key={i} style={{position:"absolute",width:8,height:8,borderRadius:4,background:p.color,
+            transform:`translate(${Math.cos(rad)*dist}px, ${Math.sin(rad)*dist}px)`,
+            animation:"fadeUp .6s ease both",animationDelay:i*0.03+"s"}}/>
+        );})}
+      </div>
+      <div onClick={e=>e.stopPropagation()} style={{textAlign:"center",padding:"32px 28px",borderRadius:24,background:`linear-gradient(135deg,${rank.color}18,${rank.tierColor}08)`,border:`2px solid ${rank.color}50`,maxWidth:300,margin:"0 20px",position:"relative",zIndex:1}}>
+        <div style={{fontSize:56,marginBottom:8,lineHeight:1}}>{rank.icon}</div>
+        <div style={{fontSize:11,fontWeight:700,color:rank.color,textTransform:"uppercase",letterSpacing:2,marginBottom:4}}>Rank Up!</div>
+        <div style={{fontSize:26,fontWeight:900,color:rank.color,marginBottom:4}}>{rank.name}</div>
+        <div style={{fontSize:13,color:V.text3,marginBottom:4}}>{rank.tier} · Level {rank.level}</div>
+        <div style={{fontSize:11,color:V.text3,marginBottom:20}}>Tap anywhere to dismiss</div>
+        <div style={{padding:"10px 16px",borderRadius:10,background:`${rank.color}15`,border:`1px solid ${rank.color}30`}}>
+          <div style={{fontSize:10,color:V.text3,marginBottom:2}}>NEXT: {rank.level<30?"rank up at "+IRON_RANKS.find(r=>r.level===rank.level+1)?.xpNeeded.toLocaleString()+" XP":"MAX RANK"}</div>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── Generalized UndoToast ───
+const UndoMgr={_fn:null,_timer:null,show:(msg,onUndo,accent)=>{if(UndoMgr._timer)clearTimeout(UndoMgr._timer);if(UndoMgr._fn)UndoMgr._fn({msg,onUndo,accent:accent||V.accent,ts:Date.now()});UndoMgr._timer=setTimeout(()=>{if(UndoMgr._fn)UndoMgr._fn(null);},5000);},clear:()=>{if(UndoMgr._timer)clearTimeout(UndoMgr._timer);if(UndoMgr._fn)UndoMgr._fn(null);}};
+function UndoToastBar(){
+  const [item,setItem]=useState(null);
+  UndoMgr._fn=setItem;
+  useEffect(()=>()=>{UndoMgr._fn=null;},[]);
+  if(!item)return null;
+  const age=(Date.now()-item.ts)/5000;
+  return ReactDOM.createPortal(
+    <div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,0px) + 88px)",left:16,right:16,zIndex:9997,display:"flex",alignItems:"center",gap:10,padding:"12px 16px",borderRadius:14,background:"rgba(20,20,32,0.97)",border:`1px solid ${item.accent}30`,backdropFilter:"blur(12px)",boxShadow:"0 4px 24px rgba(0,0,0,0.4)",animation:"fadeUp .25s ease"}}>
+      <span style={{fontSize:13,color:V.text,flex:1}}>{item.msg}</span>
+      <button onClick={()=>{item.onUndo();UndoMgr.clear();}} style={{padding:"6px 14px",borderRadius:8,background:`${item.accent}20`,border:`1px solid ${item.accent}40`,color:item.accent,fontSize:12,fontWeight:700,fontFamily:V.font,cursor:"pointer",flexShrink:0}}>Undo</button>
+    </div>,
+    document.body
+  );
+}
+
+
+// ─── Data constants ───
+const EMOTIONS=[
+  {e:"😊",label:"Happy",valence:1},{e:"😌",label:"Calm",valence:1},{e:"🤩",label:"Excited",valence:1},{e:"🥰",label:"Grateful",valence:1},
+  {e:"😔",label:"Sad",valence:-1},{e:"😰",label:"Anxious",valence:-1},{e:"😤",label:"Angry",valence:-1},{e:"😶",label:"Numb",valence:-1},
+  {e:"😴",label:"Tired",valence:0},{e:"😕",label:"Confused",valence:0},{e:"😞",label:"Disappointed",valence:-1},{e:"😊",label:"Content",valence:1},
+  {e:"😨",label:"Scared",valence:-1},{e:"🥺",label:"Vulnerable",valence:-1},{e:"💪",label:"Empowered",valence:1},{e:"😑",label:"Overwhelmed",valence:-1},
+];
+const COPING=[
+  {cat:"Grounding",items:["5-4-3-2-1 senses","Box breathing (4-4-4-4)","Hold ice cube","Feet on floor","Name 5 blue things"]},
+  {cat:"Movement",items:["10-min walk","Shake hands & feet","Progressive muscle relax","Yoga flow","Jump jacks x20"]},
+  {cat:"Connection",items:["Text a friend","Call a loved one","Pet an animal","People-watch in public","Journal to past self"]},
+  {cat:"Self-care",items:["Hot shower","Make tea","Read 10 pages","Watch comfort show","Cook something"]},
+  {cat:"Mindfulness",items:["Guided meditation","Gratitude list","Body scan","Loving-kindness","Mindful eating"]},
+];
+const PROMPTS=[
+  "What was the most challenging moment today, and how did you handle it?",
+  "Describe a small win from today, no matter how tiny.",
+  "What emotion surprised you today? Where did it come from?",
+  "What would you tell your past self from a year ago?",
+  "What boundaries did you maintain or need to set today?",
+  "What are three things you're grateful for right now?",
+  "What triggered a strong reaction today and why?",
+  "How did your body feel today? Any tension, lightness, or numbness?",
+  "What does your inner critic say most often? Is it true?",
+  "Describe a moment today when you felt most like yourself.",
+  "What do you need more of this week? Less of?",
+  "Write a letter to the emotion you felt most strongly today.",
+];
+
+// ─── Shared components ───
+const Card=({children,style:s={},onClick,glow})=>(
+  <div onClick={onClick} style={{background:glow?`${V.accent}08`:V.card,border:`1px solid ${glow?`${V.accent}25`:V.cardBorder}`,borderRadius:16,padding:16,...(onClick?{cursor:"pointer"}:{}),...s}}>
+    {children}
+  </div>
+);
+const Btn=({children,v="primary",full,disabled,onClick,s:ex={}})=>{
+  const base={display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:12,border:"none",fontSize:14,fontWeight:600,fontFamily:V.font,cursor:disabled?"default":"pointer",opacity:disabled?.4:1,WebkitTapHighlightColor:"transparent",minHeight:44,...(full?{width:"100%"}:{}),...ex};
+  const vars={
+    primary:{...base,background:`linear-gradient(135deg,${V.accent},${V.accent2})`,color:"#07060f",padding:"12px 20px"},
+    secondary:{...base,background:"rgba(255,255,255,0.05)",color:V.text2,padding:"12px 20px",border:`1px solid ${V.cardBorder}`},
+    danger:{...base,background:"rgba(244,63,94,0.12)",color:V.danger,padding:"12px 20px"},
+    ghost:{...base,background:"transparent",color:V.text2,padding:"8px 12px"},
+    small:{...base,background:`${V.accent}15`,color:V.accent,padding:"8px 14px",fontSize:12,borderRadius:10,minHeight:36},
+  };
+  return <button onClick={disabled?undefined:onClick} style={vars[v]||vars.primary}>{children}</button>;
+};
+const Field=({label,value,onChange,type="text",placeholder,rows,autoFocus})=>(
+  <div style={{marginBottom:12}}>
+    {label&&<div style={{fontSize:11,color:V.text3,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,fontWeight:600}}>{label}</div>}
+    {rows?(
+      <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} autoFocus={autoFocus}
+        style={{width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${V.cardBorder}`,borderRadius:12,color:V.text,fontSize:14,fontFamily:V.font,outline:"none",boxSizing:"border-box",lineHeight:1.6}}/>
+    ):(
+      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus}
+        style={{width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${V.cardBorder}`,borderRadius:12,color:V.text,fontSize:16,fontFamily:V.font,outline:"none",boxSizing:"border-box",minHeight:44}}/>
+    )}
+  </div>
+);
+const Progress=({val,max,color=V.accent,h=6})=>(
+  <div style={{width:"100%",height:h,background:"rgba(255,255,255,0.05)",borderRadius:h,overflow:"hidden"}}>
+    <div style={{width:`${Math.min(100,(max>0?val/max:0)*100)}%`,height:"100%",background:`linear-gradient(90deg,${color},${color}bb)`,borderRadius:h,transition:"width .4s ease"}}/>
+  </div>
+);
+const Sheet=({title,onClose,children,footer})=>ReactDOM.createPortal(
+  <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9990,background:V.sheetBg,display:"flex",flexDirection:"column"}} role="dialog" aria-modal="true">
+    <div className="sheet-head" style={{flexShrink:0,display:"flex",alignItems:"center",gap:12,paddingLeft:16,paddingRight:16,borderBottom:`1px solid ${V.cardBorder}`,background:V.sheetBg,zIndex:2}}>
+      <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",padding:"8px 4px",WebkitTapHighlightColor:"transparent",flexShrink:0}}>
+        <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={V.accent} strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        <span style={{fontSize:14,color:V.accent,fontWeight:600}}>Back</span>
+      </button>
+      <h3 style={{margin:0,fontSize:16,color:V.text,fontFamily:V.font,fontWeight:700,flex:1,textAlign:"center",paddingRight:50}}>{title}</h3>
+    </div>
+    <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",padding:20}}>{children}</div>
+    {footer&&<div className="sheet-footer" style={{background:V.sheetBg}}>{footer}</div>}
+  </div>,
+  document.body
+);
+
+let _toastFn=null;
+const Toast={show:(msg,c=V.accent)=>{if(_toastFn)_toastFn({msg,c,id:Date.now()});}};
+function ToastDisplay(){
+  const [t,setT]=useState(null);_toastFn=setT;
+  useEffect(()=>{if(t){const tm=setTimeout(()=>setT(null),2400);return()=>clearTimeout(tm);}},[t]);
+  if(!t)return null;
+  return ReactDOM.createPortal(<div style={{position:"fixed",bottom:"calc(env(safe-area-inset-bottom,0px) + 88px)",left:"50%",transform:"translateX(-50%)",zIndex:9999,background:`${t.c}18`,border:`1px solid ${t.c}30`,borderRadius:12,padding:"10px 18px",backdropFilter:"blur(12px)",fontSize:13,fontWeight:600,color:t.c,whiteSpace:"nowrap",animation:"fadeUp .25s ease"}}>{t.msg}</div>,document.body);
+}
+let _confirmFn=null;
+const Confirm={show:(msg,sub,onOk)=>{if(_confirmFn)_confirmFn({msg,sub,onOk});}};
+function GlobalConfirm(){
+  const [c,setC]=useState(null);_confirmFn=setC;
+  if(!c)return null;
+  return ReactDOM.createPortal(<div style={{position:"fixed",inset:0,zIndex:9995,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",padding:16}}><div style={{width:"100%",background:V.bg,borderRadius:20,padding:24,border:`1px solid ${V.cardBorder}`}}><div style={{fontSize:17,fontWeight:700,color:V.text,marginBottom:6}}>{c.msg}</div>{c.sub&&<div style={{fontSize:13,color:V.text3,marginBottom:20}}>{c.sub}</div>}<div style={{display:"flex",gap:10}}><Btn v="secondary" full onClick={()=>setC(null)}>Cancel</Btn><Btn v="danger" full onClick={()=>{c.onOk();setC(null);}}>Delete</Btn></div></div></div>,document.body);
+}
+
+const chartCfg={grid:{stroke:"rgba(129,140,248,0.06)"},axis:{stroke:"transparent",fontSize:9,fill:V.text3,tickLine:false,axisLine:false},tip:{contentStyle:{background:"#12102a",border:`1px solid ${V.cardBorder}`,borderRadius:10,fontSize:11,color:V.text2,fontFamily:V.font,padding:"8px 12px"},cursor:{stroke:V.accent,strokeWidth:1,strokeDasharray:"4 4"}},};
+
+// ─── State ───
+const init={tab:"home",entries:[],sessions:[],gratitude:[],triggers:[],loaded:false,onboarded:false,profile:{name:"",therapist:"",nextSession:""},goals:{journalStreak:0}};
+function reducer(s,a){
+  switch(a.type){
+    case "INIT":return{...s,...a.p,loaded:true};
+    case "TAB":return{...s,tab:a.tab};
+    case "ADD_ENTRY":return{...s,entries:[a.entry,...s.entries]};
+    case "DEL_ENTRY":return{...s,entries:s.entries.filter(e=>e.id!==a.id)};
+    case "ADD_SESSION":return{...s,sessions:[a.session,...s.sessions]};
+    case "DEL_SESSION":return{...s,sessions:s.sessions.filter(e=>e.id!==a.id)};
+    case "ADD_GRATITUDE":return{...s,gratitude:[a.g,...s.gratitude].slice(0,90)};
+    case "ADD_TRIGGER":return{...s,triggers:[a.t,...s.triggers].slice(0,60)};
+    case "PROFILE":return{...s,profile:{...s.profile,...a.p}};
+    case "ONBOARD":return{...s,...a.data,onboarded:true,loaded:true};
+    default:return s;
+  }
+}
+
+// ─── Mood Slider ───
+function MoodSlider({value,onChange}){
+  const labels={1:"Awful",2:"Very low",3:"Low",4:"Below avg",5:"Okay",6:"Decent",7:"Good",8:"Great",9:"Excellent",10:"Amazing"};
+  const color=value<=3?V.danger:value<=5?V.warm:value<=7?V.accent:V.green;
+  return(
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:8}}>
+        <span style={{fontSize:11,color:V.text3,fontWeight:600}}>MOOD</span>
+        <span style={{fontSize:28,fontWeight:900,color,fontFamily:V.mono,lineHeight:1}}>{value}<span style={{fontSize:12,color:V.text3,fontWeight:400}}>/10</span></span>
+      </div>
+      <input type="range" min={1} max={10} value={value} onChange={e=>onChange(parseInt(e.target.value))}
+        style={{width:"100%",WebkitAppearance:"none",height:8,borderRadius:4,outline:"none",cursor:"pointer",
+          background:`linear-gradient(90deg,${color} ${(value-1)/9*100}%,rgba(255,255,255,0.1) ${(value-1)/9*100}%)`}}/>
+      <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:V.text3}}>
+        <span>😞 1</span><span style={{color,fontWeight:700}}>{labels[value]}</span><span>10 😊</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── HOME TAB ───
+function HomeTab({s,d,score,missions}){
+  const [showCheckin,setShowCheckin]=useState(false);
+  const [mood,setMood]=useState(5);
+  const [emotions,setEmotions]=useState([]);
+  const [note,setNote]=useState("");
+  const [showGratitude,setShowGratitude]=useState(false);
+  const [gText,setGText]=useState("");
+  const [showCoping,setShowCoping]=useState(false);
+  const td=today();
+  const todayEntry=s.entries.find(e=>e.date===td);
+  const recent7=s.entries.filter(e=>e.date>=ago(6));
+  const avgMood=recent7.length?Math.round(recent7.reduce((a,e)=>a+e.mood,0)/recent7.length*10)/10:0;
+  const streak=(()=>{let c=0,i=0;while(s.entries.some(e=>e.date===ago(i))){c++;i++;}return c;})();
+  const todayGratitude=s.gratitude.filter(g=>g.date===td);
+  const moodColor=avgMood<=3?V.danger:avgMood<=5?V.warm:avgMood<=7?V.accent:V.green;
+  const nextSession=s.profile?.nextSession;
+  const daysUntil=nextSession?Math.ceil((new Date(nextSession+"T12:00:00")-new Date())/(1000*60*60*24)):null;
+
+  const saveCheckin=()=>{
+    const entry={id:uid(),date:td,time:fmtTime(),mood,emotions,note};
+    d({type:"ADD_ENTRY",entry});
+    Toast.show("Check-in saved 💜",V.accent);Haptic.success();
+    setShowCheckin(false);setMood(5);setEmotions([]);setNote("");
+  };
+
+  const toggleEmotion=(label)=>setEmotions(prev=>prev.includes(label)?prev.filter(e=>e!==label):[...prev,label]);
+
+  const saveGratitude=()=>{
+    if(!gText.trim())return;
+    d({type:"ADD_GRATITUDE",g:{id:uid(),date:td,text:gText.trim()}});
+    Toast.show("Gratitude logged 🌸",V.accent2);setGText("");setShowGratitude(false);
+  };
+
+  return(
+    <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 12px",borderRadius:12,background:`${score.rank.color}10`,border:`1px solid ${score.rank.color}25`,cursor:"pointer"}}>
+        <IronScoreCard score={score} compact={true}/>
+        <div style={{marginLeft:"auto",fontSize:9,color:V.text3,textAlign:"right"}}>Level {score.rank.level}<br/>{score.pct}% to next</div>
+      </div>
+      <MissionsPanel missions={missions}/>
+
+      {/* Status strip */}
+      {nextSession&&daysUntil!==null&&daysUntil>=0&&(
+        <div style={{padding:"10px 14px",borderRadius:12,background:`${V.accent}08`,border:`1px solid ${V.accent}20`,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontSize:11,color:V.text3}}>Next therapy session</div>
+            <div style={{fontSize:13,fontWeight:700,color:V.accent}}>{daysUntil===0?"Today!":daysUntil===1?"Tomorrow":`In ${daysUntil} days`}</div>
+          </div>
+          <div style={{fontSize:28}}>🛋️</div>
+        </div>
+      )}
+
+      {/* Today's mood card */}
+      {!todayEntry?(
+        <Card glow style={{padding:20,textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:8}}>🌅</div>
+          <div style={{fontSize:17,fontWeight:700,color:V.text,marginBottom:4}}>How are you feeling today?</div>
+          <div style={{fontSize:13,color:V.text3,marginBottom:16}}>Take a moment to check in with yourself</div>
+          <Btn full onClick={()=>setShowCheckin(true)}>Daily Check-in</Btn>
+        </Card>
+      ):(
+        <Card style={{padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            <div>
+              <div style={{fontSize:10,color:V.text3,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em"}}>Today's Mood</div>
+              <div style={{fontSize:36,fontWeight:900,fontFamily:V.mono,color:todayEntry.mood<=3?V.danger:todayEntry.mood<=6?V.warm:V.green}}>{todayEntry.mood}<span style={{fontSize:12,color:V.text3}}>/10</span></div>
+            </div>
+            <div style={{textAlign:"right"}}>
+              <div style={{fontSize:10,color:V.text3}}>{todayEntry.time||""}</div>
+              {todayEntry.emotions?.length>0&&<div style={{fontSize:18,marginTop:4}}>{todayEntry.emotions.slice(0,4).map(em=>EMOTIONS.find(e=>e.label===em)?.e||"").join("")}</div>}
+            </div>
+          </div>
+          {todayEntry.note&&<div style={{fontSize:13,color:V.text2,lineHeight:1.6,fontStyle:"italic",borderLeft:`2px solid ${V.accent}40`,paddingLeft:10,marginBottom:8}}>"{todayEntry.note}"</div>}
+          <Btn v="small" onClick={()=>setShowCheckin(true)}>Update Check-in</Btn>
+        </Card>
+      )}
+
+      {/* Quick stats */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+        {[
+          {label:"7d Avg",value:avgMood||"—",unit:avgMood?"":"",color:moodColor},
+          {label:"Streak",value:streak,unit:"d",color:V.accent},
+          {label:"Sessions",value:s.sessions.length,unit:"",color:V.accent2},
+        ].map(m=>(
+          <Card key={m.label} style={{padding:12,textAlign:"center"}}>
+            <div style={{fontSize:10,color:V.text3,fontWeight:600,marginBottom:2}}>{m.label}</div>
+            <div style={{fontSize:22,fontWeight:800,color:m.color,fontFamily:V.mono}}>{m.value}<span style={{fontSize:10,color:V.text3}}>{m.unit}</span></div>
+          </Card>
+        ))}
+      </div>
+
+      {/* Gratitude section */}
+      <Card style={{padding:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:700,color:V.text}}>🌸 Gratitude <span style={{fontSize:10,color:V.text3,fontWeight:400}}>({todayGratitude.length}/3 today)</span></div>
+          {todayGratitude.length<3&&<Btn v="small" onClick={()=>setShowGratitude(true)}>+ Add</Btn>}
+        </div>
+        {todayGratitude.length===0?(
+          <div style={{fontSize:12,color:V.text3,textAlign:"center",padding:"8px 0"}}>Nothing logged yet. What are you grateful for?</div>
+        ):(
+          <div style={{display:"flex",flexDirection:"column",gap:6}}>
+            {todayGratitude.map((g,i)=>(
+              <div key={g.id} style={{fontSize:13,color:V.text2,padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,0.02)",borderLeft:`3px solid ${[V.accent,V.accent2,V.green][i%3]}`}}>
+                {g.text}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Coping strategies */}
+      <Card style={{padding:14}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+          <div style={{fontSize:13,fontWeight:700,color:V.text}}>🛡️ Coping Toolkit</div>
+          <Btn v="small" onClick={()=>setShowCoping(true)}>View All</Btn>
+        </div>
+        {(()=>{
+          const cat=COPING[Math.floor(Date.now()/86400000)%COPING.length];
+          return(
+            <div>
+              <div style={{fontSize:10,color:V.accent,fontWeight:700,marginBottom:6,textTransform:"uppercase",letterSpacing:".06em"}}>{cat.cat}</div>
+              <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                {cat.items.slice(0,3).map((item,i)=>(
+                  <div key={i} style={{fontSize:13,color:V.text2,padding:"6px 10px",borderRadius:8,background:"rgba(255,255,255,0.02)"}}>{item}</div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
+      </Card>
+
+      {/* Check-in sheet */}
+      {showCheckin&&(
+        <Sheet title="Daily Check-in" onClose={()=>setShowCheckin(false)} footer={<Btn full onClick={saveCheckin}>{todayEntry?"Update Check-in":"Save Check-in"}</Btn>}>
+          <div style={{marginBottom:20}}><MoodSlider value={mood} onChange={setMood}/></div>
+          <div style={{marginBottom:16}}>
+            <div style={{fontSize:11,color:V.text3,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Emotions (select all that apply)</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {EMOTIONS.map(em=>(
+                <button key={em.label} onClick={()=>toggleEmotion(em.label)}
+                  style={{padding:"7px 12px",borderRadius:20,border:`1px solid ${emotions.includes(em.label)?V.accent:V.cardBorder}`,background:emotions.includes(em.label)?`${V.accent}18`:"rgba(255,255,255,0.03)",cursor:"pointer",fontSize:12,color:emotions.includes(em.label)?V.accent:V.text2,fontFamily:V.font,display:"flex",alignItems:"center",gap:4}}>
+                  <span>{em.e}</span><span>{em.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <Field label="Notes (optional)" value={note} onChange={setNote} rows={4} placeholder="What's on your mind? How was your day?"/>
+        </Sheet>
+      )}
+
+      {showGratitude&&(
+        <Sheet title="Gratitude" onClose={()=>setShowGratitude(false)} footer={<Btn full onClick={saveGratitude}>Save</Btn>}>
+          <div style={{fontSize:13,color:V.text3,marginBottom:16}}>What are you grateful for right now?</div>
+          <Field value={gText} onChange={setGText} rows={4} placeholder="I'm grateful for..." autoFocus/>
+        </Sheet>
+      )}
+
+      {showCoping&&(
+        <Sheet title="Coping Toolkit" onClose={()=>setShowCoping(false)}>
+          {COPING.map((cat,ci)=>(
+            <div key={ci} style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:V.accent,textTransform:"uppercase",letterSpacing:".08em",marginBottom:8}}>{cat.cat}</div>
+              {cat.items.map((item,i)=>(
+                <div key={i} style={{padding:"10px 12px",borderRadius:10,background:V.card,border:`1px solid ${V.cardBorder}`,marginBottom:6,fontSize:13,color:V.text2}}>{item}</div>
+              ))}
+            </div>
+          ))}
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
+// ─── JOURNAL TAB ───
+function JournalTab({s,d}){
+  const [showNew,setShowNew]=useState(false);
+  const [text,setText]=useState("");
+  const [prompt,setPrompt]=useState(PROMPTS[0]);
+  const [usePrompt,setUsePrompt]=useState(false);
+  const [triggers,setTriggers]=useState([]);
+  const [newTrigger,setNewTrigger]=useState("");
+
+  const randomPrompt=()=>setPrompt(PROMPTS[Math.floor(Math.random()*PROMPTS.length)]);
+
+  const saveEntry=()=>{
+    if(!text.trim())return;
+    d({type:"ADD_ENTRY",entry:{id:uid(),date:today(),time:fmtTime(),type:"journal",mood:5,emotions:[],note:text.trim(),prompt:usePrompt?prompt:null,triggers}});
+    Toast.show("Journal saved 💜",V.accent);Haptic.success();
+    setText("");setTriggers([]);setShowNew(false);
+  };
+
+  const addTrigger=()=>{if(!newTrigger.trim())return;setTriggers(t=>[...t,newTrigger.trim()]);setNewTrigger("");};
+  const journalEntries=s.entries.filter(e=>e.type==="journal"||e.note);
+
+  return(
+    <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
+      <Btn full onClick={()=>setShowNew(true)}>✏️ New Journal Entry</Btn>
+
+      {journalEntries.length===0&&(
+        <div style={{textAlign:"center",padding:"48px 20px",color:V.text3}}>
+          <div style={{fontSize:40,marginBottom:12}}>📓</div>
+          <div style={{fontSize:15,fontWeight:600,color:V.text2,marginBottom:6}}>Your journal awaits</div>
+          <div style={{fontSize:13}}>Writing helps process emotions and gain clarity</div>
+        </div>
+      )}
+
+      {journalEntries.map(e=>(
+        <Card key={e.id} style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:12,color:V.text3}}>{fmtFull(e.date)}{e.time?` · ${e.time}`:""}</div>
+              {e.emotions?.length>0&&<div style={{fontSize:16,marginTop:2}}>{e.emotions.slice(0,4).map(em=>EMOTIONS.find(x=>x.label===em)?.e||"").join("")}</div>}
+            </div>
+            <div style={{display:"flex",gap:8,alignItems:"center"}}>
+              {e.mood&&<span style={{fontSize:13,fontWeight:700,fontFamily:V.mono,color:e.mood<=3?V.danger:e.mood<=6?V.warm:V.green}}>{e.mood}</span>}
+              <button onClick={()=>Confirm.show("Delete entry?","This cannot be undone.",()=>d({type:"DEL_ENTRY",id:e.id}))} style={{background:"none",border:"none",padding:4,cursor:"pointer",opacity:.6}}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              </button>
+            </div>
+          </div>
+          {e.prompt&&<div style={{fontSize:11,color:V.accent,fontStyle:"italic",marginBottom:6,paddingLeft:8,borderLeft:`2px solid ${V.accent}40`}}>{e.prompt}</div>}
+          <div style={{fontSize:13,color:V.text2,lineHeight:1.7,whiteSpace:"pre-wrap"}}>{e.note?.length>200?e.note.slice(0,200)+"...":e.note}</div>
+          {e.triggers?.length>0&&(
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginTop:8}}>
+              {e.triggers.map((t,i)=>(
+                <span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:12,background:"rgba(244,63,94,0.12)",color:V.danger,fontWeight:600}}>⚡ {t}</span>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+
+      {showNew&&(
+        <Sheet title="New Entry" onClose={()=>{setShowNew(false);setText("");setTriggers([]);}} footer={<Btn full onClick={saveEntry} disabled={!text.trim()}>Save Entry</Btn>}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+            <button onClick={()=>setUsePrompt(u=>!u)} style={{padding:"7px 12px",borderRadius:20,border:`1px solid ${usePrompt?V.accent:V.cardBorder}`,background:usePrompt?`${V.accent}12`:"transparent",color:usePrompt?V.accent:V.text3,fontSize:12,cursor:"pointer",fontFamily:V.font}}>
+              {usePrompt?"✓ Prompt":"Use Prompt"}
+            </button>
+            {usePrompt&&<button onClick={randomPrompt} style={{padding:"7px 12px",borderRadius:20,border:`1px solid ${V.cardBorder}`,background:"transparent",color:V.text3,fontSize:12,cursor:"pointer",fontFamily:V.font}}>🔀 Different</button>}
+          </div>
+          {usePrompt&&<div style={{padding:"10px 14px",borderRadius:10,background:`${V.accent}08`,border:`1px solid ${V.accent}15`,fontSize:13,color:V.accent2,lineHeight:1.5,marginBottom:14,fontStyle:"italic"}}>{prompt}</div>}
+          <Field value={text} onChange={setText} rows={8} placeholder="Start writing..." autoFocus/>
+          <div style={{marginTop:4}}>
+            <div style={{fontSize:11,color:V.text3,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Triggers (optional)</div>
+            <div style={{display:"flex",gap:6,marginBottom:8}}>
+              <input value={newTrigger} onChange={e=>setNewTrigger(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addTrigger()} placeholder="e.g. work stress, conflict..."
+                style={{flex:1,padding:"8px 12px",background:"rgba(255,255,255,0.04)",border:`1px solid ${V.cardBorder}`,borderRadius:10,color:V.text,fontSize:13,fontFamily:V.font,outline:"none"}}/>
+              <button onClick={addTrigger} style={{padding:"8px 14px",borderRadius:10,background:`${V.danger}15`,border:"none",color:V.danger,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:V.font}}>+ Add</button>
+            </div>
+            <div style={{display:"flex",gap:4,flexWrap:"wrap"}}>
+              {triggers.map((t,i)=>(
+                <span key={i} onClick={()=>setTriggers(ts=>ts.filter((_,j)=>j!==i))} style={{fontSize:10,padding:"4px 10px",borderRadius:12,background:"rgba(244,63,94,0.12)",color:V.danger,fontWeight:600,cursor:"pointer"}}>⚡ {t} ×</span>
+              ))}
+            </div>
+          </div>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
+// ─── SESSIONS TAB ───
+function SessionsTab({s,d}){
+  const [showNew,setShowNew]=useState(false);
+  const [form,setForm]=useState({date:today(),therapist:"",duration:"50",notes:"",homework:"",mood_before:"5",mood_after:"6",topics:[]});
+  const TOPICS=["Anxiety","Depression","Trauma","Relationships","Work","Family","Self-esteem","Grief","Anger","Boundaries","Identity","Goals"];
+  const toggleTopic=(t)=>setForm(f=>({...f,topics:f.topics.includes(t)?f.topics.filter(x=>x!==t):[...f.topics,t]}));
+
+  const save=()=>{
+    const session={id:uid(),...form,duration:parseInt(form.duration)||50,mood_before:parseInt(form.mood_before)||5,mood_after:parseInt(form.mood_after)||6};
+    d({type:"ADD_SESSION",session});Toast.show("Session logged 🛋️",V.accent2);Haptic.success();setShowNew(false);
+    setForm({date:today(),therapist:"",duration:"50",notes:"",homework:"",mood_before:"5",mood_after:"6",topics:[]});
+  };
+
+  return(
+    <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
+      <Btn full onClick={()=>setShowNew(true)}>+ Log Session</Btn>
+
+      {s.profile?.nextSession&&(
+        <Card style={{padding:14,background:`${V.accent}06`,border:`1px solid ${V.accent}20`}}>
+          <div style={{fontSize:10,color:V.text3,fontWeight:600,marginBottom:4}}>NEXT SESSION</div>
+          <div style={{fontSize:15,fontWeight:700,color:V.accent}}>{fmtFull(s.profile.nextSession)}</div>
+          {s.profile.therapist&&<div style={{fontSize:12,color:V.text3,marginTop:2}}>{s.profile.therapist}</div>}
+        </Card>
+      )}
+
+      {s.sessions.length===0&&(
+        <div style={{textAlign:"center",padding:"48px 20px",color:V.text3}}>
+          <div style={{fontSize:40,marginBottom:12}}>🛋️</div>
+          <div style={{fontSize:15,fontWeight:600,color:V.text2,marginBottom:6}}>No sessions logged yet</div>
+          <div style={{fontSize:13}}>Track your therapy progress and homework</div>
+        </div>
+      )}
+
+      {s.sessions.map(session=>(
+        <Card key={session.id} style={{padding:14}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:700,color:V.text}}>{session.therapist||"Therapy Session"}</div>
+              <div style={{fontSize:11,color:V.text3}}>{fmtFull(session.date)} · {session.duration}min</div>
+            </div>
+            <div style={{display:"flex",gap:4,alignItems:"center"}}>
+              <div style={{fontSize:12,fontFamily:V.mono,color:V.text3}}>
+                <span style={{color:session.mood_before<=4?V.danger:session.mood_before<=6?V.warm:V.green}}>{session.mood_before}</span>
+                <span> → </span>
+                <span style={{color:session.mood_after<=4?V.danger:session.mood_after<=6?V.warm:V.green}}>{session.mood_after}</span>
+              </div>
+              <button onClick={()=>Confirm.show("Delete session?","",()=>d({type:"DEL_SESSION",id:session.id}))} style={{background:"none",border:"none",padding:4,cursor:"pointer"}}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              </button>
+            </div>
+          </div>
+          {session.topics?.length>0&&(
+            <div style={{display:"flex",gap:4,flexWrap:"wrap",marginBottom:8}}>
+              {session.topics.map((t,i)=>(
+                <span key={i} style={{fontSize:10,padding:"2px 8px",borderRadius:12,background:`${V.accent}12`,color:V.accent,fontWeight:600}}>{t}</span>
+              ))}
+            </div>
+          )}
+          {session.notes&&<div style={{fontSize:13,color:V.text2,lineHeight:1.6,marginBottom:6}}>{session.notes}</div>}
+          {session.homework&&(
+            <div style={{padding:"8px 10px",borderRadius:8,background:`${V.accent2}08`,border:`1px solid ${V.accent2}20`}}>
+              <div style={{fontSize:10,color:V.accent2,fontWeight:700,marginBottom:2}}>HOMEWORK</div>
+              <div style={{fontSize:12,color:V.text2}}>{session.homework}</div>
+            </div>
+          )}
+        </Card>
+      ))}
+
+      {showNew&&(
+        <Sheet title="Log Session" onClose={()=>setShowNew(false)} footer={<Btn full onClick={save}>Save Session</Btn>}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <Field label="Date" type="date" value={form.date} onChange={v=>setForm(f=>({...f,date:v}))}/>
+            <Field label="Duration (min)" type="number" value={form.duration} onChange={v=>setForm(f=>({...f,duration:v}))}/>
+          </div>
+          <Field label="Therapist Name" value={form.therapist} onChange={v=>setForm(f=>({...f,therapist:v}))} placeholder="Optional"/>
+          <div style={{marginBottom:12}}>
+            <div style={{fontSize:11,color:V.text3,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Topics Covered</div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+              {TOPICS.map(t=>(
+                <button key={t} onClick={()=>toggleTopic(t)} style={{padding:"6px 12px",borderRadius:16,border:`1px solid ${form.topics.includes(t)?V.accent:V.cardBorder}`,background:form.topics.includes(t)?`${V.accent}12`:"transparent",color:form.topics.includes(t)?V.accent:V.text3,fontSize:12,cursor:"pointer",fontFamily:V.font}}>{t}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
+            <div>
+              <div style={{fontSize:11,color:V.text3,fontWeight:600,marginBottom:6}}>MOOD BEFORE (1-10)</div>
+              <input type="range" min={1} max={10} value={form.mood_before} onChange={e=>setForm(f=>({...f,mood_before:e.target.value}))} style={{width:"100%"}}/>
+              <div style={{textAlign:"center",fontSize:12,color:V.text3,fontFamily:V.mono}}>{form.mood_before}</div>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:V.text3,fontWeight:600,marginBottom:6}}>MOOD AFTER (1-10)</div>
+              <input type="range" min={1} max={10} value={form.mood_after} onChange={e=>setForm(f=>({...f,mood_after:e.target.value}))} style={{width:"100%"}}/>
+              <div style={{textAlign:"center",fontSize:12,color:V.text3,fontFamily:V.mono}}>{form.mood_after}</div>
+            </div>
+          </div>
+          <Field label="Session Notes" value={form.notes} onChange={v=>setForm(f=>({...f,notes:v}))} rows={3} placeholder="What did we discuss? Key insights?"/>
+          <Field label="Homework / Action Items" value={form.homework} onChange={v=>setForm(f=>({...f,homework:v}))} rows={2} placeholder="What will you practice this week?"/>
+        </Sheet>
+      )}
+    </div>
+  );
+}
+
+// ─── TRENDS TAB ───
+function TrendsTab({s}){
+  const moodData=useMemo(()=>s.entries.filter(e=>e.mood&&e.date>=ago(29)).sort((a,b)=>a.date.localeCompare(b.date)).map(e=>({date:fmtShort(e.date),mood:e.mood})),[s.entries]);
+  const sessionMoodData=useMemo(()=>s.sessions.filter(e=>e.date>=ago(89)).sort((a,b)=>a.date.localeCompare(b.date)).map((e,i)=>({label:`S${i+1}`,before:e.mood_before,after:e.mood_after})),[s.sessions]);
+  const emotionCounts=useMemo(()=>{
+    const counts={};
+    s.entries.filter(e=>e.date>=ago(29)).forEach(e=>e.emotions?.forEach(em=>{counts[em]=(counts[em]||0)+1;}));
+    return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  },[s.entries]);
+
+  if(s.entries.length<3)return(
+    <div className="fade-up" style={{textAlign:"center",padding:"60px 20px",color:V.text3}}>
+      <div style={{fontSize:48,marginBottom:12}}>📈</div>
+      <div style={{fontSize:16,fontWeight:600,color:V.text2,marginBottom:6}}>Log more check-ins</div>
+      <div style={{fontSize:13}}>Need at least 3 entries to show trends</div>
+    </div>
+  );
+
+  const recent7=s.entries.filter(e=>e.date>=ago(6)&&e.mood);
+  const avgMood=recent7.length?Math.round(recent7.reduce((a,e)=>a+e.mood,0)/recent7.length*10)/10:0;
+
+  return(
+    <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        <Card style={{padding:14,textAlign:"center"}}>
+          <div style={{fontSize:10,color:V.text3,fontWeight:600,marginBottom:2}}>7-DAY AVG MOOD</div>
+          <div style={{fontSize:28,fontWeight:900,fontFamily:V.mono,color:avgMood<=4?V.danger:avgMood<=6?V.warm:V.green}}>{avgMood||"—"}</div>
+        </Card>
+        <Card style={{padding:14,textAlign:"center"}}>
+          <div style={{fontSize:10,color:V.text3,fontWeight:600,marginBottom:2}}>TOTAL SESSIONS</div>
+          <div style={{fontSize:28,fontWeight:900,fontFamily:V.mono,color:V.accent2}}>{s.sessions.length}</div>
+        </Card>
+      </div>
+
+      {moodData.length>1&&(
+        <Card>
+          <div style={{fontSize:10,fontWeight:700,color:V.text3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Mood Trend (30d)</div>
+          <ResponsiveContainer width="100%" height={150}>
+            <AreaChart data={moodData}>
+              <defs><linearGradient id="moodGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={V.accent} stopOpacity={0.3}/><stop offset="95%" stopColor={V.accent} stopOpacity={0}/></linearGradient></defs>
+              <CartesianGrid {...chartCfg.grid} vertical={false}/>
+              <XAxis dataKey="date" {...chartCfg.axis} interval="preserveStartEnd"/>
+              <YAxis {...chartCfg.axis} width={20} domain={[1,10]}/>
+              <Tooltip {...chartCfg.tip}/>
+              <ReferenceLine y={5} stroke={V.cardBorder} strokeDasharray="3 3"/>
+              <Area type="monotone" dataKey="mood" stroke={V.accent} strokeWidth={2} fill="url(#moodGrad)" name="Mood"/>
+            </AreaChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+
+      {sessionMoodData.length>1&&(
+        <Card>
+          <div style={{fontSize:10,fontWeight:700,color:V.text3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Session Mood Before/After</div>
+          <ResponsiveContainer width="100%" height={130}>
+            <LineChart data={sessionMoodData}>
+              <CartesianGrid {...chartCfg.grid} vertical={false}/>
+              <XAxis dataKey="label" {...chartCfg.axis}/>
+              <YAxis {...chartCfg.axis} width={20} domain={[1,10]}/>
+              <Tooltip {...chartCfg.tip}/>
+              <Line type="monotone" dataKey="before" stroke={V.warm} strokeWidth={2} dot={false} name="Before"/>
+              <Line type="monotone" dataKey="after" stroke={V.green} strokeWidth={2} dot={false} name="After"/>
+            </LineChart>
+          </ResponsiveContainer>
+          <div style={{display:"flex",gap:12,marginTop:6}}>
+            {[{c:V.warm,l:"Before"},{c:V.green,l:"After"}].map(x=>(
+              <div key={x.l} style={{display:"flex",alignItems:"center",gap:4}}><div style={{width:8,height:8,borderRadius:2,background:x.c}}/><span style={{fontSize:9,color:V.text3}}>{x.l}</span></div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {emotionCounts.length>0&&(
+        <Card style={{padding:14}}>
+          <div style={{fontSize:10,fontWeight:700,color:V.text3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Most Frequent Emotions (30d)</div>
+          {emotionCounts.map(([em,count])=>{
+            const emotionObj=EMOTIONS.find(e=>e.label===em);
+            const max=emotionCounts[0][1];
+            return(
+              <div key={em} style={{display:"flex",alignItems:"center",gap:8,marginBottom:8}}>
+                <span style={{fontSize:16,width:20,flexShrink:0}}>{emotionObj?.e||"😐"}</span>
+                <span style={{fontSize:12,color:V.text2,width:80,flexShrink:0}}>{em}</span>
+                <div style={{flex:1,height:6,borderRadius:3,background:"rgba(255,255,255,0.05)"}}>
+                  <div style={{height:"100%",borderRadius:3,width:`${count/max*100}%`,background:`linear-gradient(90deg,${emotionObj?.valence>0?V.green:emotionObj?.valence<0?V.danger:V.warm},transparent)`}}/>
+                </div>
+                <span style={{fontSize:11,color:V.text3,fontFamily:V.mono,width:20,textAlign:"right"}}>{count}</span>
+              </div>
+            );
+          })}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ─── SETTINGS TAB ───
+function SettingsTab({s,d}){
+  const [profile,setProfile]=useState(s.profile||{});
+  const [open,setOpen]=useState(null);
+  const toggle=(id)=>setOpen(o=>o===id?null:id);
+  useEffect(()=>setProfile(s.profile||{}),[s.profile]);
+  const saveProfile=()=>{d({type:"PROFILE",p:profile});Toast.show("Saved",V.accent);};
+  const Row=({id,icon,label,children})=>(
+    <div style={{background:V.card,border:`1px solid ${V.cardBorder}`,borderRadius:14,overflow:"hidden",marginBottom:8}}>
+      <button onClick={()=>toggle(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",WebkitTapHighlightColor:"transparent"}}>
+        <span style={{fontSize:18}}>{icon}</span>
+        <span style={{fontSize:14,fontWeight:600,color:V.text,flex:1}}>{label}</span>
+        <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:open===id?"rotate(90deg)":"none"}}><polyline points="9 18 15 12 9 6"/></svg>
+      </button>
+      {open===id&&<div style={{padding:"0 16px 16px",borderTop:`1px solid ${V.cardBorder}`}}><div style={{paddingTop:12}}>{children}</div></div>}
+    </div>
+  );
+  return(
+    <div className="fade-up">
+      <Row id="profile" icon="👤" label="Profile">
+        <Field label="Your Name" value={profile.name||""} onChange={v=>setProfile(p=>({...p,name:v}))}/>
+        <Field label="Therapist Name" value={profile.therapist||""} onChange={v=>setProfile(p=>({...p,therapist:v}))} placeholder="Optional"/>
+        <Field label="Next Session Date" type="date" value={profile.nextSession||""} onChange={v=>setProfile(p=>({...p,nextSession:v}))}/>
+        <Btn full onClick={saveProfile}>Save</Btn>
+      </Row>
+      <Row id="account" icon="🔐" label="Account">
+        <div style={{fontSize:13,color:V.text3,marginBottom:12,lineHeight:1.5}}>TherapyLog uses your IRONLOG account for authentication. Your journal data stays on this device.</div>
+        <div style={{padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,0.02)",marginBottom:12}}>
+          <div style={{fontSize:10,color:V.text3,marginBottom:2}}>Signed in as</div>
+          <div style={{fontSize:13,fontWeight:600,color:V.text}}>{LS.get("ft-session-email")||"—"}</div>
+        </div>
+        <a href="https://ironlog.space" target="_blank" rel="noopener" style={{display:"block",width:"100%",padding:"12px",borderRadius:10,border:`1px solid ${V.accent}30`,background:`${V.accent}08`,color:V.accent,fontSize:13,fontWeight:600,textAlign:"center",textDecoration:"none",marginBottom:10,boxSizing:"border-box"}}>Open IronLog ↗</a>
+      </Row>
+      
+      <Row id="rank" icon="🏆" label="IRON Rank">
+        <IronScoreCard score={score} compact={false}/>
+        <div style={{marginTop:12,fontSize:11,color:V.text3,lineHeight:1.5}}>Your IRON Rank is shared across the IRONLOG app ecosystem. Complete daily missions and log consistently to level up.</div>
+        <a href="https://ironlog.space" target="_blank" rel="noopener" style={{display:"block",marginTop:10,padding:"10px 14px",borderRadius:10,border:`1px solid ${V.accent}30`,background:`${V.accent}08`,color:V.accent,fontSize:12,fontWeight:600,textDecoration:"none",textAlign:"center",boxSizing:"border-box"}}>Open IRONLOG ↗</a>
+      </Row>
+      <Row id="theme" icon="🎨" label="Appearance">
+        <div style={{display:"flex",gap:8}}>
+          {["dark","light"].map(mode=>(
+            <button key={mode} onClick={()=>{setTheme(mode);window.location.reload();}} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${V.mode===mode?V.accent:V.cardBorder}`,background:V.mode===mode?`${V.accent}12`:"rgba(255,255,255,0.03)",color:V.mode===mode?V.accent:V.text3,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:V.font,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+              {mode==="dark"?"🌙":"☀️"} {mode.charAt(0).toUpperCase()+mode.slice(1)}
+            </button>
+          ))}
+        </div>
+      </Row>
+      <Row id="privacy" icon="🔒" label="Privacy & Data">
+        <div style={{fontSize:13,color:V.text2,marginBottom:12,lineHeight:1.6}}>All journal entries and mood data are stored <strong style={{color:V.text}}>only on this device</strong>. Nothing is uploaded to any server.</div>
+        <Btn v="secondary" full onClick={()=>{
+          const data={entries:s.entries,sessions:s.sessions,gratitude:s.gratitude,exportedAt:new Date().toISOString()};
+          const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
+          const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`therapylog-${today()}.json`;a.click();
+          Toast.show("Exported",V.accent);
+        }} s={{marginBottom:8}}>Export Data</Btn>
+        <Btn v="danger" full onClick={()=>Confirm.show("Delete all data?","Journal entries, sessions, and gratitude logs will be permanently deleted.",()=>{
+          LS.set("tl-entries",[]);LS.set("tl-sessions",[]);LS.set("tl-gratitude",[]);window.location.reload();
+        })}>Delete All Data</Btn>
+      </Row>
+    </div>
+  );
+}
+
+// ─── APP ───
+function App(){
+  const [s,d]=useReducer(reducer,init);
+
+  const score=useMemo(()=>calcScore(s),[s.entries,s.sessions,s.gratitude]);
+  const missions=useMemo(()=>getDailyMissions(s),[s.entries,s.sessions,s.gratitude]);
+  const {celebrating,celebRank,dismiss:dismissLevel}=useLevelUp(score,"tl-last-level");
+  useEffect(()=>{
+    const entries=LS.get("tl-entries")||[];
+    const sessions=LS.get("tl-sessions")||[];
+    const gratitude=LS.get("tl-gratitude")||[];
+    const profile=LS.get("tl-profile")||{};
+    const onboarded=!!(LS.get("ft-session-token")||Cookie.get("ironlog_session")||LS.get("ft-onb")||LS.get("tl-onb"));
+    d({type:"INIT",p:{entries,sessions,gratitude,profile,onboarded:true}});
+  },[]);
+  useEffect(()=>{
+    if(!s.loaded)return;
+    LS.set("tl-entries",s.entries);
+    LS.set("tl-sessions",s.sessions);
+    LS.set("tl-gratitude",s.gratitude);
+    LS.set("tl-profile",s.profile);
+  },[s.entries,s.sessions,s.gratitude,s.profile,s.loaded]);
+
+  if(!s.loaded)return<div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100vh",background:V.bg,flexDirection:"column",gap:12}}><div style={{fontSize:36}}>🧠</div><div style={{fontSize:11,color:V.text3,fontFamily:V.mono,animation:"pulse 1.5s infinite"}}>Loading...</div></div>;
+
+  const tabs=[{id:"home",label:"Today",icon:"🏠"},{id:"journal",label:"Journal",icon:"📓"},{id:"sessions",label:"Sessions",icon:"🛋️"},{id:"trends",label:"Trends",icon:"📈"},{id:"settings",label:"Settings",icon:"⚙️"}];
+
+  return(
+    <div style={{height:"100%",display:"flex",flexDirection:"column",background:V.bg}}>
+      <div style={{paddingTop:`max(16px,env(safe-area-inset-top,0px))`,paddingLeft:16,paddingRight:16,paddingBottom:10,background:V.navBg,borderBottom:`1px solid ${V.cardBorder}`,flexShrink:0,backdropFilter:"blur(12px)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:22}}>🧠</span>
+            <div>
+              <div style={{fontSize:16,fontWeight:800,color:V.text,lineHeight:1}}>TherapyLog</div>
+              <div style={{fontSize:9,color:V.text3,fontWeight:600,letterSpacing:".1em"}}>by IRONLOG</div>
+            </div>
+          </div>
+          {(()=>{const t=s.entries.find(e=>e.date===today());return t?<div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:900,fontFamily:V.mono,color:t.mood<=3?V.danger:t.mood<=6?V.warm:V.green}}>{t.mood}<span style={{fontSize:9,color:V.text3}}>/10</span></div><div style={{fontSize:9,color:V.text3}}>today</div></div>:null;})()}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
+        <div className="main-scroll" style={{paddingTop:16}}>
+          {s.tab==="home"&&<HomeTab s={s} d={d} score={score} missions={missions}/>}
+          {s.tab==="journal"&&<JournalTab s={s} d={d}/>}
+          {s.tab==="sessions"&&<SessionsTab s={s} d={d}/>}
+          {s.tab==="trends"&&<TrendsTab s={s}/>}
+          {s.tab==="settings"&&<SettingsTab s={s} d={d}/>}
+        </div>
+      </div>
+      <div className="tab-bar" style={{background:V.navBg,borderTop:`1px solid ${V.cardBorder}`,display:"flex",backdropFilter:"blur(12px)",flexShrink:0,paddingTop:8}}>
+        {tabs.map(tab=>{
+          const active=s.tab===tab.id;
+          return(
+            <button key={tab.id} onClick={()=>{Haptic.light();d({type:"TAB",tab:tab.id});}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer",padding:"4px 0",WebkitTapHighlightColor:"transparent"}}>
+              <span style={{fontSize:18,opacity:active?1:.5}}>{tab.icon}</span>
+              <span style={{fontSize:9,fontWeight:active?700:500,color:active?V.accent:V.text3}}>{tab.label}</span>
+              {active&&<div style={{width:4,height:4,borderRadius:2,background:V.accent,marginTop:-2}}/>}
+            </button>
+          );
+        })}
+      </div>
+      <ToastDisplay/><GlobalConfirm/><UndoToastBar/>{celebrating&&celebRank&&<LevelUpCelebration rank={celebRank} onDismiss={dismissLevel}/>}
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
