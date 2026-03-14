@@ -1,7 +1,7 @@
 {
-  "name": "TherapyLog",
+  "name": "TherapyLog - Mental Wellness Tracker",
   "short_name": "TherapyLog",
-  "description": "A mental health and mood tracking PWA. Part of the IRONLOG ecosystem.",
+  "description": "A private, secure mental health and mood tracking app. Journal your thoughts, track moods, and build healthy habits.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
@@ -12,22 +12,51 @@
       "src": "./icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "categories": [
     "health",
     "lifestyle",
-    "productivity"
+    "productivity",
+    "medical"
   ],
   "scope": "/",
   "lang": "en-US",
+  "dir": "ltr",
+  "prefer_related_applications": false,
   "shortcuts": [
     {
-      "name": "Open TherapyLog",
-      "short_name": "TherapyLog",
-      "description": "Open TherapyLog",
-      "url": "/"
+      "name": "Daily Check-in",
+      "short_name": "Check-in",
+      "description": "Log your mood and emotions",
+      "url": "/?action=checkin",
+      "icons": [{"src": "./icon.svg", "sizes": "any"}]
+    },
+    {
+      "name": "New Journal Entry",
+      "short_name": "Journal",
+      "description": "Write a journal entry",
+      "url": "/?action=journal",
+      "icons": [{"src": "./icon.svg", "sizes": "any"}]
     }
   ]
 }
