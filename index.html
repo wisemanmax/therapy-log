@@ -28,12 +28,16 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6) sepia(1) 
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .fade-up{animation:fadeUp .3s ease both}
 textarea{resize:none;outline:none}
+:focus-visible{outline:2px solid #818cf8;outline-offset:2px;border-radius:4px}
+button:focus-visible{outline:2px solid #818cf8;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.fade-up{animation:none!important}*{transition-duration:0.01ms!important}}
 
 @media(orientation:landscape) and (max-height:500px){#root{display:none!important}#landscape-lock{display:flex!important}}
 #landscape-lock{display:none;position:fixed;inset:0;background:#08080d;z-index:99999;flex-direction:column;align-items:center;justify-content:center;gap:12px;font-family:'Outfit',sans-serif;color:#94a3b8;font-size:14px;text-align:center;padding:20px}
 </style>
 <link rel="manifest" href="./manifest.json"/>
 <link rel="apple-touch-icon" href="./icon.svg"/>
+<meta name="description" content="A private, secure mental health and mood tracking PWA. Journal your thoughts, track moods, and build healthy habits."/>
 </head>
 <body>
 <div id="landscape-lock"><div style="font-size:32px">🔄</div><div>Please rotate your device to portrait mode</div></div>
@@ -79,12 +83,17 @@ function showError(msg){
   })
   .catch(function(e){showError(e.message);});
 })();
+if('serviceWorker' in navigator){
+  window.addEventListener('load',function(){
+    navigator.serviceWorker.register('/sw.js').catch(function(){});
+  });
+}
 </script>
 <script type="text/plain" id="app-src">
 const{useState,useEffect,useReducer,useCallback,useMemo,useRef,memo}=React;
 const{LineChart,Line,AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine}=Recharts;
 
-const LS={get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+const LS={get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn("Storage full or unavailable");}}};
 const Cookie={get:(n)=>{const m=document.cookie.match(new RegExp("(^| )"+n+"=([^;]+)"));return m?decodeURIComponent(m[2]):null;}};
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
 const today=()=>new Date().toISOString().split("T")[0];
@@ -92,6 +101,32 @@ const ago=(n)=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString
 const fmtFull=(d)=>{try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}};
 const fmtShort=(d)=>{try{const dt=new Date(d+"T12:00:00");return`${dt.getMonth()+1}/${dt.getDate()}`;}catch(e){return d;}};
 const fmtTime=()=>new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
+
+// ─── Input Sanitization ───
+const sanitize=(str)=>{if(typeof str!=="string")return"";return str.replace(/[<>&"']/g,(c)=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c]||c)).slice(0,5000);};
+const sanitizeEntry=(text)=>{if(typeof text!=="string")return"";return text.replace(/<script[^>]*>[\s\S]*?<\/script>/gi,"").replace(/<[^>]*on\w+\s*=/gi,"").slice(0,10000);};
+
+// ─── Data validation ───
+const validateMood=(v)=>{const n=parseInt(v);return isNaN(n)?5:Math.max(1,Math.min(10,n));};
+const validateDate=(d)=>{if(!d||typeof d!=="string")return today();return/^\d{4}-\d{2}-\d{2}$/.test(d)?d:today();};
+
+// ─── Error Boundary ───
+class ErrorBoundary extends React.Component{
+  constructor(props){super(props);this.state={hasError:false,error:null};}
+  static getDerivedStateFromError(error){return{hasError:true,error};}
+  componentDidCatch(error,info){console.error("TherapyLog Error:",error,info);}
+  render(){
+    if(this.state.hasError){
+      return React.createElement("div",{style:{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100vh",padding:24,textAlign:"center",background:"#07060f",color:"#e8e4f0"}},
+        React.createElement("div",{style:{fontSize:48,marginBottom:16}},"🧠"),
+        React.createElement("div",{style:{fontSize:18,fontWeight:700,marginBottom:8}},"Something went wrong"),
+        React.createElement("div",{style:{fontSize:13,color:"#a099b8",marginBottom:24,maxWidth:300,lineHeight:1.6}},"Your data is safe. Try refreshing the page."),
+        React.createElement("button",{onClick:()=>window.location.reload(),style:{padding:"12px 24px",borderRadius:12,background:"linear-gradient(135deg,#818cf8,#c084fc)",color:"#07060f",border:"none",fontSize:14,fontWeight:600,cursor:"pointer"}},"Refresh")
+      );
+    }
+    return this.props.children;
+  }
+}
 
 
 // ─── Theme ───
@@ -110,7 +145,7 @@ const LIGHT={
   sheetBg:"linear-gradient(180deg,#ffffff,#f5f3ff)",navBg:"rgba(245,243,255,0.97)",mode:"light"
 };
 const V={...(LS.get("tl-theme")==="light"?LIGHT:DARK)};
-const setTheme=(m)=>{const t=m==="light"?LIGHT:DARK;Object.assign(V,t);LS.set("tl-theme",m);document.body.style.background=V.bg;document.body.style.color=V.text;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",V.bg);};
+const setTheme=(m)=>{const t=m==="light"?LIGHT:DARK;Object.assign(V,t);LS.set("tl-theme",m);document.body.style.background=V.bg;document.body.style.color=V.text;document.querySelector('meta[name="theme-color"]')?.setAttribute("content",V.bg);if(window._themeRefresh)window._themeRefresh();};
 
 const Haptic={light:()=>{try{navigator.vibrate?.(10);}catch(e){}},medium:()=>{try{navigator.vibrate?.(25);}catch(e){}},success:()=>{try{navigator.vibrate?.([10,30,10]);}catch(e){}},};
 
@@ -155,7 +190,7 @@ function calcScore(s){
   // Check-ins: 20 XP each
   xp+=entries.filter(e=>e.mood).length*20;
   // Journal entries: 25 XP each
-  xp+=entries.filter(e=>e.type==="journal"||e.note).length*25;
+  xp+=entries.filter(e=>e.type==="journal").length*25;
   // Gratitude: 5 XP each (cap 15 per day)
   const gratByDay={};(s.gratitude||[]).forEach(g=>{gratByDay[g.date]=(gratByDay[g.date]||0)+1;});
   Object.values(gratByDay).forEach(n=>xp+=Math.min(n,3)*5);
@@ -188,7 +223,7 @@ function getDailyMissions(s){
     {icon:"🌸",title:"3 Gratitudes",desc:"Log three things you're grateful for",xp:20,done:todayGratCount>=3},
     {icon:"🛋️",title:"Log a Session",desc:"Record a therapy session this week",xp:50,done:sessionThisWeek},
     {icon:"😊",title:"Good Mood Day",desc:"Check in with a mood of 7 or higher",xp:15,done:goodMood},
-    {icon:"🛡️",title:"Use Coping Tool",desc:"View the coping toolkit today",xp:10,done:!!((s._viewedCoping||{}).date===td)},
+    {icon:"🛡️",title:"Use Coping Tool",desc:"View the coping toolkit today",xp:10,done:LS.get("tl-coping-viewed")===td},
   ];
 }
 
@@ -384,6 +419,7 @@ const COPING=[
   {cat:"Self-care",items:["Hot shower","Make tea","Read 10 pages","Watch comfort show","Cook something"]},
   {cat:"Mindfulness",items:["Guided meditation","Gratitude list","Body scan","Loving-kindness","Mindful eating"]},
 ];
+const SESSION_TOPICS=["Anxiety","Depression","Trauma","Relationships","Work","Family","Self-esteem","Grief","Anger","Boundaries","Identity","Goals"];
 const PROMPTS=[
   "What was the most challenging moment today, and how did you handle it?",
   "Describe a small win from today, no matter how tiny.",
@@ -405,8 +441,8 @@ const Card=({children,style:s={},onClick,glow})=>(
     {children}
   </div>
 );
-const Btn=({children,v="primary",full,disabled,onClick,s:ex={}})=>{
-  const base={display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:12,border:"none",fontSize:14,fontWeight:600,fontFamily:V.font,cursor:disabled?"default":"pointer",opacity:disabled?.4:1,WebkitTapHighlightColor:"transparent",minHeight:44,...(full?{width:"100%"}:{}),...ex};
+const Btn=({children,v="primary",full,disabled,onClick,s:ex={},ariaLabel})=>{
+  const base={display:"flex",alignItems:"center",justifyContent:"center",gap:6,borderRadius:12,border:"none",fontSize:14,fontWeight:600,fontFamily:V.font,cursor:disabled?"default":"pointer",opacity:disabled?.4:1,WebkitTapHighlightColor:"transparent",minHeight:44,transition:"opacity .15s",...(full?{width:"100%"}:{}),...ex};
   const vars={
     primary:{...base,background:`linear-gradient(135deg,${V.accent},${V.accent2})`,color:"#07060f",padding:"12px 20px"},
     secondary:{...base,background:"rgba(255,255,255,0.05)",color:V.text2,padding:"12px 20px",border:`1px solid ${V.cardBorder}`},
@@ -414,39 +450,50 @@ const Btn=({children,v="primary",full,disabled,onClick,s:ex={}})=>{
     ghost:{...base,background:"transparent",color:V.text2,padding:"8px 12px"},
     small:{...base,background:`${V.accent}15`,color:V.accent,padding:"8px 14px",fontSize:12,borderRadius:10,minHeight:36},
   };
-  return <button onClick={disabled?undefined:onClick} style={vars[v]||vars.primary}>{children}</button>;
+  return <button onClick={disabled?undefined:onClick} style={vars[v]||vars.primary} disabled={disabled} aria-label={ariaLabel} aria-disabled={disabled}>{children}</button>;
 };
-const Field=({label,value,onChange,type="text",placeholder,rows,autoFocus})=>(
+const Field=({label,value,onChange,type="text",placeholder,rows,autoFocus,required,maxLength})=>{
+  const fieldId=useMemo(()=>"f-"+uid(),[]);
+  return(
   <div style={{marginBottom:12}}>
-    {label&&<div style={{fontSize:11,color:V.text3,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,fontWeight:600}}>{label}</div>}
+    {label&&<label htmlFor={fieldId} style={{display:"block",fontSize:11,color:V.text3,textTransform:"uppercase",letterSpacing:".08em",marginBottom:6,fontWeight:600}}>{label}{required&&<span style={{color:V.danger}}> *</span>}</label>}
     {rows?(
-      <textarea value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} autoFocus={autoFocus}
+      <textarea id={fieldId} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} rows={rows} autoFocus={autoFocus} maxLength={maxLength||10000} aria-label={label||placeholder} aria-required={required}
         style={{width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${V.cardBorder}`,borderRadius:12,color:V.text,fontSize:14,fontFamily:V.font,outline:"none",boxSizing:"border-box",lineHeight:1.6}}/>
     ):(
-      <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus}
+      <input id={fieldId} type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder} autoFocus={autoFocus} maxLength={maxLength||500} aria-label={label||placeholder} aria-required={required}
         style={{width:"100%",padding:"12px 14px",background:"rgba(255,255,255,0.04)",border:`1px solid ${V.cardBorder}`,borderRadius:12,color:V.text,fontSize:16,fontFamily:V.font,outline:"none",boxSizing:"border-box",minHeight:44}}/>
     )}
   </div>
 );
+};
 const Progress=({val,max,color=V.accent,h=6})=>(
   <div style={{width:"100%",height:h,background:"rgba(255,255,255,0.05)",borderRadius:h,overflow:"hidden"}}>
     <div style={{width:`${Math.min(100,(max>0?val/max:0)*100)}%`,height:"100%",background:`linear-gradient(90deg,${color},${color}bb)`,borderRadius:h,transition:"width .4s ease"}}/>
   </div>
 );
-const Sheet=({title,onClose,children,footer})=>ReactDOM.createPortal(
-  <div style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9990,background:V.sheetBg,display:"flex",flexDirection:"column"}} role="dialog" aria-modal="true">
+const Sheet=({title,onClose,children,footer})=>{
+  const sheetRef=useRef(null);
+  useEffect(()=>{
+    const handleKey=(e)=>{if(e.key==="Escape")onClose();};
+    document.addEventListener("keydown",handleKey);
+    if(sheetRef.current)sheetRef.current.focus();
+    return()=>document.removeEventListener("keydown",handleKey);
+  },[onClose]);
+  return ReactDOM.createPortal(
+  <div ref={sheetRef} tabIndex={-1} style={{position:"fixed",top:0,left:0,right:0,bottom:0,zIndex:9990,background:V.sheetBg,display:"flex",flexDirection:"column",outline:"none"}} role="dialog" aria-modal="true" aria-label={title}>
     <div className="sheet-head" style={{flexShrink:0,display:"flex",alignItems:"center",gap:12,paddingLeft:16,paddingRight:16,borderBottom:`1px solid ${V.cardBorder}`,background:V.sheetBg,zIndex:2}}>
-      <button onClick={onClose} style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",padding:"8px 4px",WebkitTapHighlightColor:"transparent",flexShrink:0}}>
-        <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={V.accent} strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      <button onClick={onClose} aria-label="Go back" style={{display:"flex",alignItems:"center",gap:5,background:"none",border:"none",cursor:"pointer",padding:"8px 4px",WebkitTapHighlightColor:"transparent",flexShrink:0}}>
+        <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke={V.accent} strokeWidth="2.5" strokeLinecap="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
         <span style={{fontSize:14,color:V.accent,fontWeight:600}}>Back</span>
       </button>
-      <h3 style={{margin:0,fontSize:16,color:V.text,fontFamily:V.font,fontWeight:700,flex:1,textAlign:"center",paddingRight:50}}>{title}</h3>
+      <h2 style={{margin:0,fontSize:16,color:V.text,fontFamily:V.font,fontWeight:700,flex:1,textAlign:"center",paddingRight:50}}>{title}</h2>
     </div>
     <div style={{flex:1,minHeight:0,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain",padding:20}}>{children}</div>
     {footer&&<div className="sheet-footer" style={{background:V.sheetBg}}>{footer}</div>}
   </div>,
   document.body
-);
+);};
 
 let _toastFn=null;
 const Toast={show:(msg,c=V.accent)=>{if(_toastFn)_toastFn({msg,c,id:Date.now()});}};
@@ -461,7 +508,7 @@ const Confirm={show:(msg,sub,onOk)=>{if(_confirmFn)_confirmFn({msg,sub,onOk});}}
 function GlobalConfirm(){
   const [c,setC]=useState(null);_confirmFn=setC;
   if(!c)return null;
-  return ReactDOM.createPortal(<div style={{position:"fixed",inset:0,zIndex:9995,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",padding:16}}><div style={{width:"100%",background:V.bg,borderRadius:20,padding:24,border:`1px solid ${V.cardBorder}`}}><div style={{fontSize:17,fontWeight:700,color:V.text,marginBottom:6}}>{c.msg}</div>{c.sub&&<div style={{fontSize:13,color:V.text3,marginBottom:20}}>{c.sub}</div>}<div style={{display:"flex",gap:10}}><Btn v="secondary" full onClick={()=>setC(null)}>Cancel</Btn><Btn v="danger" full onClick={()=>{c.onOk();setC(null);}}>Delete</Btn></div></div></div>,document.body);
+  return ReactDOM.createPortal(<div role="alertdialog" aria-modal="true" aria-label={c.msg} style={{position:"fixed",inset:0,zIndex:9995,background:"rgba(0,0,0,0.7)",display:"flex",alignItems:"flex-end",padding:16}}><div style={{width:"100%",background:V.bg,borderRadius:20,padding:24,border:`1px solid ${V.cardBorder}`}}><div style={{fontSize:17,fontWeight:700,color:V.text,marginBottom:6}}>{c.msg}</div>{c.sub&&<div style={{fontSize:13,color:V.text3,marginBottom:20}}>{c.sub}</div>}<div style={{display:"flex",gap:10}}><Btn v="secondary" full onClick={()=>setC(null)} ariaLabel="Cancel deletion">Cancel</Btn><Btn v="danger" full onClick={()=>{c.onOk();setC(null);}} ariaLabel="Confirm deletion">Delete</Btn></div></div></div>,document.body);
 }
 
 const chartCfg={grid:{stroke:"rgba(129,140,248,0.06)"},axis:{stroke:"transparent",fontSize:9,fill:V.text3,tickLine:false,axisLine:false},tip:{contentStyle:{background:"#12102a",border:`1px solid ${V.cardBorder}`,borderRadius:10,fontSize:11,color:V.text2,fontFamily:V.font,padding:"8px 12px"},cursor:{stroke:V.accent,strokeWidth:1,strokeDasharray:"4 4"}},};
@@ -494,7 +541,7 @@ function MoodSlider({value,onChange}){
         <span style={{fontSize:11,color:V.text3,fontWeight:600}}>MOOD</span>
         <span style={{fontSize:28,fontWeight:900,color,fontFamily:V.mono,lineHeight:1}}>{value}<span style={{fontSize:12,color:V.text3,fontWeight:400}}>/10</span></span>
       </div>
-      <input type="range" min={1} max={10} value={value} onChange={e=>onChange(parseInt(e.target.value))}
+      <input type="range" min={1} max={10} value={value} onChange={e=>onChange(parseInt(e.target.value))} aria-label={`Mood level: ${value} out of 10, ${labels[value]}`} aria-valuemin={1} aria-valuemax={10} aria-valuenow={value} aria-valuetext={labels[value]}
         style={{width:"100%",WebkitAppearance:"none",height:8,borderRadius:4,outline:"none",cursor:"pointer",
           background:`linear-gradient(90deg,${color} ${(value-1)/9*100}%,rgba(255,255,255,0.1) ${(value-1)/9*100}%)`}}/>
       <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:9,color:V.text3}}>
@@ -514,9 +561,10 @@ function HomeTab({s,d,score,missions}){
   const [gText,setGText]=useState("");
   const [showCoping,setShowCoping]=useState(false);
   const td=today();
+  const markCopingViewed=()=>{LS.set("tl-coping-viewed",td);setShowCoping(true);};
   const todayEntry=s.entries.find(e=>e.date===td);
-  const recent7=s.entries.filter(e=>e.date>=ago(6));
-  const avgMood=recent7.length?Math.round(recent7.reduce((a,e)=>a+e.mood,0)/recent7.length*10)/10:0;
+  const recent7=s.entries.filter(e=>e.date>=ago(6)&&e.mood);
+  const avgMood=recent7.length?Math.round(recent7.reduce((a,e)=>a+(e.mood||0),0)/recent7.length*10)/10:0;
   const streak=(()=>{let c=0,i=0;while(s.entries.some(e=>e.date===ago(i))){c++;i++;}return c;})();
   const todayGratitude=s.gratitude.filter(g=>g.date===td);
   const moodColor=avgMood<=3?V.danger:avgMood<=5?V.warm:avgMood<=7?V.accent:V.green;
@@ -524,9 +572,9 @@ function HomeTab({s,d,score,missions}){
   const daysUntil=nextSession?Math.ceil((new Date(nextSession+"T12:00:00")-new Date())/(1000*60*60*24)):null;
 
   const saveCheckin=()=>{
-    const entry={id:uid(),date:td,time:fmtTime(),mood,emotions,note};
+    const entry={id:uid(),date:td,time:fmtTime(),mood:validateMood(mood),emotions:emotions.filter(e=>EMOTIONS.some(em=>em.label===e)),note:sanitizeEntry(note)};
     d({type:"ADD_ENTRY",entry});
-    Toast.show("Check-in saved 💜",V.accent);Haptic.success();
+    Toast.show("Check-in saved",V.accent);Haptic.success();
     setShowCheckin(false);setMood(5);setEmotions([]);setNote("");
   };
 
@@ -534,7 +582,7 @@ function HomeTab({s,d,score,missions}){
 
   const saveGratitude=()=>{
     if(!gText.trim())return;
-    d({type:"ADD_GRATITUDE",g:{id:uid(),date:td,text:gText.trim()}});
+    d({type:"ADD_GRATITUDE",g:{id:uid(),date:td,text:sanitize(gText.trim())}});
     Toast.show("Gratitude logged 🌸",V.accent2);setGText("");setShowGratitude(false);
   };
 
@@ -615,11 +663,46 @@ function HomeTab({s,d,score,missions}){
         )}
       </Card>
 
+      {/* Weekly Wellness Summary */}
+      {recent7.length>=2&&(()=>{
+        const journalsThisWeek=s.entries.filter(e=>e.date>=ago(6)&&e.type==="journal").length;
+        const gratThisWeek=s.gratitude.filter(g=>g.date>=ago(6)).length;
+        const sessionsThisWeek=s.sessions.filter(se=>se.date>=ago(6)).length;
+        const moodTrend=recent7.length>=2?(recent7[0].mood||5)-(recent7[recent7.length-1].mood||5):0;
+        const topEmotions={};recent7.forEach(e=>(e.emotions||[]).forEach(em=>{topEmotions[em]=(topEmotions[em]||0)+1;}));
+        const topEmotion=Object.entries(topEmotions).sort((a,b)=>b[1]-a[1])[0];
+        return(
+          <Card style={{padding:14}}>
+            <div style={{fontSize:13,fontWeight:700,color:V.text,marginBottom:10}}>📊 Weekly Summary</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10}}>
+              <div style={{padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.02)"}}>
+                <div style={{fontSize:10,color:V.text3}}>Journal entries</div>
+                <div style={{fontSize:16,fontWeight:800,color:V.accent,fontFamily:V.mono}}>{journalsThisWeek}</div>
+              </div>
+              <div style={{padding:"8px 10px",borderRadius:10,background:"rgba(255,255,255,0.02)"}}>
+                <div style={{fontSize:10,color:V.text3}}>Gratitudes</div>
+                <div style={{fontSize:16,fontWeight:800,color:V.green,fontFamily:V.mono}}>{gratThisWeek}</div>
+              </div>
+            </div>
+            {moodTrend!==0&&(
+              <div style={{fontSize:12,color:moodTrend>0?V.green:moodTrend<0?V.warm:V.text3,marginBottom:6}}>
+                {moodTrend>0?"↑":"↓"} Mood {moodTrend>0?"improved":"dipped"} by {Math.abs(moodTrend)} point{Math.abs(moodTrend)!==1?"s":""} this week
+              </div>
+            )}
+            {topEmotion&&(
+              <div style={{fontSize:12,color:V.text3}}>
+                Most felt emotion: <span style={{color:V.accent,fontWeight:600}}>{EMOTIONS.find(e=>e.label===topEmotion[0])?.e||""} {topEmotion[0]}</span> ({topEmotion[1]}x)
+              </div>
+            )}
+          </Card>
+        );
+      })()}
+
       {/* Coping strategies */}
       <Card style={{padding:14}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
           <div style={{fontSize:13,fontWeight:700,color:V.text}}>🛡️ Coping Toolkit</div>
-          <Btn v="small" onClick={()=>setShowCoping(true)}>View All</Btn>
+          <Btn v="small" onClick={markCopingViewed}>View All</Btn>
         </div>
         {(()=>{
           const cat=COPING[Math.floor(Date.now()/86400000)%COPING.length];
@@ -644,9 +727,9 @@ function HomeTab({s,d,score,missions}){
             <div style={{fontSize:11,color:V.text3,fontWeight:600,textTransform:"uppercase",letterSpacing:".06em",marginBottom:8}}>Emotions (select all that apply)</div>
             <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
               {EMOTIONS.map(em=>(
-                <button key={em.label} onClick={()=>toggleEmotion(em.label)}
+                <button key={em.label} onClick={()=>toggleEmotion(em.label)} role="checkbox" aria-checked={emotions.includes(em.label)} aria-label={`${em.label} emotion`}
                   style={{padding:"7px 12px",borderRadius:20,border:`1px solid ${emotions.includes(em.label)?V.accent:V.cardBorder}`,background:emotions.includes(em.label)?`${V.accent}18`:"rgba(255,255,255,0.03)",cursor:"pointer",fontSize:12,color:emotions.includes(em.label)?V.accent:V.text2,fontFamily:V.font,display:"flex",alignItems:"center",gap:4}}>
-                  <span>{em.e}</span><span>{em.label}</span>
+                  <span aria-hidden="true">{em.e}</span><span>{em.label}</span>
                 </button>
               ))}
             </div>
@@ -691,24 +774,25 @@ function JournalTab({s,d}){
 
   const saveEntry=()=>{
     if(!text.trim())return;
-    d({type:"ADD_ENTRY",entry:{id:uid(),date:today(),time:fmtTime(),type:"journal",mood:5,emotions:[],note:text.trim(),prompt:usePrompt?prompt:null,triggers}});
+    d({type:"ADD_ENTRY",entry:{id:uid(),date:today(),time:fmtTime(),type:"journal",mood:5,emotions:[],note:sanitizeEntry(text.trim()),prompt:usePrompt?prompt:null,triggers:triggers.map(t=>sanitize(t))}});
     Toast.show("Journal saved 💜",V.accent);Haptic.success();
     setText("");setTriggers([]);setShowNew(false);
   };
 
   const addTrigger=()=>{if(!newTrigger.trim())return;setTriggers(t=>[...t,newTrigger.trim()]);setNewTrigger("");};
-  const journalEntries=s.entries.filter(e=>e.type==="journal"||e.note);
+  const journalEntries=s.entries.filter(e=>e.type==="journal");
 
   return(
     <div className="fade-up" style={{display:"flex",flexDirection:"column",gap:12}}>
       <Btn full onClick={()=>setShowNew(true)}>✏️ New Journal Entry</Btn>
 
       {journalEntries.length===0&&(
-        <div style={{textAlign:"center",padding:"48px 20px",color:V.text3}}>
+        <Card style={{textAlign:"center",padding:"40px 20px"}}>
           <div style={{fontSize:40,marginBottom:12}}>📓</div>
           <div style={{fontSize:15,fontWeight:600,color:V.text2,marginBottom:6}}>Your journal awaits</div>
-          <div style={{fontSize:13}}>Writing helps process emotions and gain clarity</div>
-        </div>
+          <div style={{fontSize:13,color:V.text3,marginBottom:16,lineHeight:1.6}}>Writing helps process emotions and gain clarity. Start with a prompt or free-write.</div>
+          <Btn v="small" onClick={()=>setShowNew(true)}>Start Writing</Btn>
+        </Card>
       )}
 
       {journalEntries.map(e=>(
@@ -720,8 +804,8 @@ function JournalTab({s,d}){
             </div>
             <div style={{display:"flex",gap:8,alignItems:"center"}}>
               {e.mood&&<span style={{fontSize:13,fontWeight:700,fontFamily:V.mono,color:e.mood<=3?V.danger:e.mood<=6?V.warm:V.green}}>{e.mood}</span>}
-              <button onClick={()=>Confirm.show("Delete entry?","This cannot be undone.",()=>d({type:"DEL_ENTRY",id:e.id}))} style={{background:"none",border:"none",padding:4,cursor:"pointer",opacity:.6}}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              <button onClick={()=>Confirm.show("Delete entry?","This cannot be undone.",()=>d({type:"DEL_ENTRY",id:e.id}))} aria-label="Delete entry" style={{background:"none",border:"none",padding:4,cursor:"pointer",opacity:.6}}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
               </button>
             </div>
           </div>
@@ -770,11 +854,11 @@ function JournalTab({s,d}){
 function SessionsTab({s,d}){
   const [showNew,setShowNew]=useState(false);
   const [form,setForm]=useState({date:today(),therapist:"",duration:"50",notes:"",homework:"",mood_before:"5",mood_after:"6",topics:[]});
-  const TOPICS=["Anxiety","Depression","Trauma","Relationships","Work","Family","Self-esteem","Grief","Anger","Boundaries","Identity","Goals"];
+  const TOPICS=SESSION_TOPICS;
   const toggleTopic=(t)=>setForm(f=>({...f,topics:f.topics.includes(t)?f.topics.filter(x=>x!==t):[...f.topics,t]}));
 
   const save=()=>{
-    const session={id:uid(),...form,duration:parseInt(form.duration)||50,mood_before:parseInt(form.mood_before)||5,mood_after:parseInt(form.mood_after)||6};
+    const session={id:uid(),date:validateDate(form.date),therapist:sanitize(form.therapist),duration:Math.max(1,Math.min(480,parseInt(form.duration)||50)),notes:sanitizeEntry(form.notes),homework:sanitizeEntry(form.homework),mood_before:validateMood(form.mood_before),mood_after:validateMood(form.mood_after),topics:form.topics.filter(t=>TOPICS.includes(t))};
     d({type:"ADD_SESSION",session});Toast.show("Session logged 🛋️",V.accent2);Haptic.success();setShowNew(false);
     setForm({date:today(),therapist:"",duration:"50",notes:"",homework:"",mood_before:"5",mood_after:"6",topics:[]});
   };
@@ -792,11 +876,12 @@ function SessionsTab({s,d}){
       )}
 
       {s.sessions.length===0&&(
-        <div style={{textAlign:"center",padding:"48px 20px",color:V.text3}}>
+        <Card style={{textAlign:"center",padding:"40px 20px"}}>
           <div style={{fontSize:40,marginBottom:12}}>🛋️</div>
           <div style={{fontSize:15,fontWeight:600,color:V.text2,marginBottom:6}}>No sessions logged yet</div>
-          <div style={{fontSize:13}}>Track your therapy progress and homework</div>
-        </div>
+          <div style={{fontSize:13,color:V.text3,marginBottom:16,lineHeight:1.6}}>Track your therapy progress, homework, and mood changes after each session.</div>
+          <Btn v="small" onClick={()=>setShowNew(true)}>Log Your First Session</Btn>
+        </Card>
       )}
 
       {s.sessions.map(session=>(
@@ -812,8 +897,8 @@ function SessionsTab({s,d}){
                 <span> → </span>
                 <span style={{color:session.mood_after<=4?V.danger:session.mood_after<=6?V.warm:V.green}}>{session.mood_after}</span>
               </div>
-              <button onClick={()=>Confirm.show("Delete session?","",()=>d({type:"DEL_SESSION",id:session.id}))} style={{background:"none",border:"none",padding:4,cursor:"pointer"}}>
-                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+              <button onClick={()=>Confirm.show("Delete session?","This cannot be undone.",()=>d({type:"DEL_SESSION",id:session.id}))} aria-label="Delete session" style={{background:"none",border:"none",padding:4,cursor:"pointer"}}>
+                <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke={V.text3} strokeWidth="2" strokeLinecap="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
               </button>
             </div>
           </div>
@@ -879,11 +964,13 @@ function TrendsTab({s}){
     return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,6);
   },[s.entries]);
 
-  if(s.entries.length<3)return(
+  if(s.entries.filter(e=>e.mood).length<3)return(
     <div className="fade-up" style={{textAlign:"center",padding:"60px 20px",color:V.text3}}>
       <div style={{fontSize:48,marginBottom:12}}>📈</div>
-      <div style={{fontSize:16,fontWeight:600,color:V.text2,marginBottom:6}}>Log more check-ins</div>
-      <div style={{fontSize:13}}>Need at least 3 entries to show trends</div>
+      <div style={{fontSize:16,fontWeight:600,color:V.text2,marginBottom:6}}>Almost there!</div>
+      <div style={{fontSize:13,lineHeight:1.6}}>Complete {3-s.entries.filter(e=>e.mood).length} more daily check-in{3-s.entries.filter(e=>e.mood).length!==1?"s":""} to unlock your mood trends and insights.</div>
+      <Progress val={s.entries.filter(e=>e.mood).length} max={3} color={V.accent} h={4}/>
+      <div style={{fontSize:10,color:V.text3,marginTop:6}}>{s.entries.filter(e=>e.mood).length}/3 check-ins</div>
     </div>
   );
 
@@ -941,6 +1028,35 @@ function TrendsTab({s}){
         </Card>
       )}
 
+      {/* Wellness Insights */}
+      {moodData.length>=5&&(()=>{
+        const recentAvg=moodData.slice(-7).reduce((a,d)=>a+d.mood,0)/Math.min(7,moodData.length);
+        const olderAvg=moodData.length>7?moodData.slice(0,-7).reduce((a,d)=>a+d.mood,0)/moodData.slice(0,-7).length:recentAvg;
+        const trend=recentAvg-olderAvg;
+        const positiveEmotions=s.entries.filter(e=>e.date>=ago(6)).reduce((c,e)=>c+(e.emotions||[]).filter(em=>EMOTIONS.find(x=>x.label===em)?.valence>0).length,0);
+        const negativeEmotions=s.entries.filter(e=>e.date>=ago(6)).reduce((c,e)=>c+(e.emotions||[]).filter(em=>EMOTIONS.find(x=>x.label===em)?.valence<0).length,0);
+        const ratio=negativeEmotions>0?(positiveEmotions/negativeEmotions).toFixed(1):"--";
+        return(
+          <Card style={{padding:14}}>
+            <div style={{fontSize:10,fontWeight:700,color:V.text3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Wellness Insights</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8}}>
+              <div style={{padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,0.02)"}}>
+                <div style={{fontSize:10,color:V.text3,marginBottom:4}}>Mood Trend</div>
+                <div style={{fontSize:16,fontWeight:800,color:trend>0.3?V.green:trend<-0.3?V.danger:V.accent,fontFamily:V.mono}}>
+                  {trend>0.3?"↑ Improving":trend<-0.3?"↓ Declining":"→ Stable"}
+                </div>
+              </div>
+              <div style={{padding:"10px 12px",borderRadius:10,background:"rgba(255,255,255,0.02)"}}>
+                <div style={{fontSize:10,color:V.text3,marginBottom:4}}>Positive:Negative Ratio</div>
+                <div style={{fontSize:16,fontWeight:800,color:parseFloat(ratio)>=2?V.green:parseFloat(ratio)>=1?V.accent:V.warm,fontFamily:V.mono}}>{ratio}</div>
+              </div>
+            </div>
+            {trend>0.3&&<div style={{fontSize:12,color:V.green,marginTop:8}}>Your mood has been trending upward. Keep going!</div>}
+            {trend<-0.3&&<div style={{fontSize:12,color:V.warm,marginTop:8}}>Your mood has dipped recently. Consider reaching out to your therapist or trying a coping strategy.</div>}
+          </Card>
+        );
+      })()}
+
       {emotionCounts.length>0&&(
         <Card style={{padding:14}}>
           <div style={{fontSize:10,fontWeight:700,color:V.text3,textTransform:"uppercase",letterSpacing:".06em",marginBottom:10}}>Most Frequent Emotions (30d)</div>
@@ -965,12 +1081,12 @@ function TrendsTab({s}){
 }
 
 // ─── SETTINGS TAB ───
-function SettingsTab({s,d}){
+function SettingsTab({s,d,score}){
   const [profile,setProfile]=useState(s.profile||{});
   const [open,setOpen]=useState(null);
   const toggle=(id)=>setOpen(o=>o===id?null:id);
   useEffect(()=>setProfile(s.profile||{}),[s.profile]);
-  const saveProfile=()=>{d({type:"PROFILE",p:profile});Toast.show("Saved",V.accent);};
+  const saveProfile=()=>{d({type:"PROFILE",p:{name:sanitize(profile.name),therapist:sanitize(profile.therapist),nextSession:validateDate(profile.nextSession)}});Toast.show("Saved",V.accent);};
   const Row=({id,icon,label,children})=>(
     <div style={{background:V.card,border:`1px solid ${V.cardBorder}`,borderRadius:14,overflow:"hidden",marginBottom:8}}>
       <button onClick={()=>toggle(id)} style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",width:"100%",background:"none",border:"none",cursor:"pointer",textAlign:"left",WebkitTapHighlightColor:"transparent"}}>
@@ -1006,22 +1122,72 @@ function SettingsTab({s,d}){
       <Row id="theme" icon="🎨" label="Appearance">
         <div style={{display:"flex",gap:8}}>
           {["dark","light"].map(mode=>(
-            <button key={mode} onClick={()=>{setTheme(mode);window.location.reload();}} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${V.mode===mode?V.accent:V.cardBorder}`,background:V.mode===mode?`${V.accent}12`:"rgba(255,255,255,0.03)",color:V.mode===mode?V.accent:V.text3,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:V.font,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
+            <button key={mode} onClick={()=>{setTheme(mode);}} style={{flex:1,padding:"12px",borderRadius:12,border:`1px solid ${V.mode===mode?V.accent:V.cardBorder}`,background:V.mode===mode?`${V.accent}12`:"rgba(255,255,255,0.03)",color:V.mode===mode?V.accent:V.text3,fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:V.font,display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>
               {mode==="dark"?"🌙":"☀️"} {mode.charAt(0).toUpperCase()+mode.slice(1)}
             </button>
           ))}
         </div>
       </Row>
       <Row id="privacy" icon="🔒" label="Privacy & Data">
-        <div style={{fontSize:13,color:V.text2,marginBottom:12,lineHeight:1.6}}>All journal entries and mood data are stored <strong style={{color:V.text}}>only on this device</strong>. Nothing is uploaded to any server.</div>
+        <div style={{fontSize:13,color:V.text2,marginBottom:12,lineHeight:1.6}}>All journal entries and mood data are stored <strong style={{color:V.text}}>only on this device</strong>. Nothing is uploaded to any server. Your mental health data never leaves your browser.</div>
+        <div style={{padding:"10px 14px",borderRadius:12,background:"rgba(52,211,153,0.06)",border:"1px solid rgba(52,211,153,0.2)",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:16}}>🛡️</span>
+            <div>
+              <div style={{fontSize:12,fontWeight:700,color:V.green}}>Privacy First</div>
+              <div style={{fontSize:11,color:V.text3}}>Zero data collection. No analytics. No tracking. 100% on-device storage.</div>
+            </div>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,marginBottom:8}}>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:V.text3,marginBottom:4}}>ENTRIES</div>
+            <div style={{fontSize:18,fontWeight:800,color:V.accent,fontFamily:V.mono}}>{s.entries.length}</div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:V.text3,marginBottom:4}}>SESSIONS</div>
+            <div style={{fontSize:18,fontWeight:800,color:V.accent2,fontFamily:V.mono}}>{s.sessions.length}</div>
+          </div>
+          <div style={{flex:1}}>
+            <div style={{fontSize:10,color:V.text3,marginBottom:4}}>GRATITUDES</div>
+            <div style={{fontSize:18,fontWeight:800,color:V.green,fontFamily:V.mono}}>{s.gratitude.length}</div>
+          </div>
+        </div>
         <Btn v="secondary" full onClick={()=>{
-          const data={entries:s.entries,sessions:s.sessions,gratitude:s.gratitude,exportedAt:new Date().toISOString()};
+          const data={version:2,entries:s.entries,sessions:s.sessions,gratitude:s.gratitude,profile:s.profile,exportedAt:new Date().toISOString()};
           const blob=new Blob([JSON.stringify(data,null,2)],{type:"application/json"});
-          const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`therapylog-${today()}.json`;a.click();
-          Toast.show("Exported",V.accent);
-        }} s={{marginBottom:8}}>Export Data</Btn>
-        <Btn v="danger" full onClick={()=>Confirm.show("Delete all data?","Journal entries, sessions, and gratitude logs will be permanently deleted.",()=>{
-          LS.set("tl-entries",[]);LS.set("tl-sessions",[]);LS.set("tl-gratitude",[]);window.location.reload();
+          const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=`therapylog-backup-${today()}.json`;a.click();URL.revokeObjectURL(url);
+          Toast.show("Data exported",V.accent);
+        }} s={{marginBottom:8}}>Export Backup</Btn>
+        <Btn v="secondary" full onClick={()=>{
+          const input=document.createElement("input");input.type="file";input.accept=".json";
+          input.onchange=(e)=>{
+            const file=e.target.files[0];if(!file)return;
+            const reader=new FileReader();
+            reader.onload=(ev)=>{
+              try{
+                const data=JSON.parse(ev.target.result);
+                if(!data.entries&&!data.sessions){Toast.show("Invalid backup file",V.danger);return;}
+                Confirm.show("Import data?","This will merge the backup with your existing data. No data will be overwritten.",()=>{
+                  const existing=new Set(s.entries.map(e=>e.id));
+                  const newEntries=(data.entries||[]).filter(e=>e.id&&!existing.has(e.id));
+                  const existingSessions=new Set(s.sessions.map(e=>e.id));
+                  const newSessions=(data.sessions||[]).filter(e=>e.id&&!existingSessions.has(e.id));
+                  const existingGrat=new Set(s.gratitude.map(e=>e.id));
+                  const newGrat=(data.gratitude||[]).filter(e=>e.id&&!existingGrat.has(e.id));
+                  newEntries.forEach(entry=>d({type:"ADD_ENTRY",entry}));
+                  newSessions.forEach(session=>d({type:"ADD_SESSION",session}));
+                  newGrat.forEach(g=>d({type:"ADD_GRATITUDE",g}));
+                  Toast.show(`Imported ${newEntries.length+newSessions.length+newGrat.length} items`,V.green);
+                });
+              }catch(err){Toast.show("Could not read file",V.danger);}
+            };
+            reader.readAsText(file);
+          };
+          input.click();
+        }} s={{marginBottom:8}}>Import Backup</Btn>
+        <Btn v="danger" full onClick={()=>Confirm.show("Delete all data?","Journal entries, sessions, and gratitude logs will be permanently deleted. This cannot be undone.",()=>{
+          LS.set("tl-entries",[]);LS.set("tl-sessions",[]);LS.set("tl-gratitude",[]);LS.set("tl-profile",{});window.location.reload();
         })}>Delete All Data</Btn>
       </Row>
     </div>
@@ -1031,6 +1197,8 @@ function SettingsTab({s,d}){
 // ─── APP ───
 function App(){
   const [s,d]=useReducer(reducer,init);
+  const [,forceUpdate]=useState(0);
+  useEffect(()=>{window._themeRefresh=()=>forceUpdate(c=>c+1);return()=>{delete window._themeRefresh;};},[]);
 
   const score=useMemo(()=>calcScore(s),[s.entries,s.sessions,s.gratitude]);
   const missions=useMemo(()=>getDailyMissions(s),[s.entries,s.sessions,s.gratitude]);
@@ -1057,44 +1225,51 @@ function App(){
 
   return(
     <div style={{height:"100%",display:"flex",flexDirection:"column",background:V.bg}}>
-      <div style={{paddingTop:`max(16px,env(safe-area-inset-top,0px))`,paddingLeft:16,paddingRight:16,paddingBottom:10,background:V.navBg,borderBottom:`1px solid ${V.cardBorder}`,flexShrink:0,backdropFilter:"blur(12px)"}}>
+      <header style={{paddingTop:`max(16px,env(safe-area-inset-top,0px))`,paddingLeft:16,paddingRight:16,paddingBottom:10,background:V.navBg,borderBottom:`1px solid ${V.cardBorder}`,flexShrink:0,backdropFilter:"blur(12px)"}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{fontSize:22}}>🧠</span>
+            <span style={{fontSize:22}} aria-hidden="true">🧠</span>
             <div>
-              <div style={{fontSize:16,fontWeight:800,color:V.text,lineHeight:1}}>TherapyLog</div>
+              <h1 style={{fontSize:16,fontWeight:800,color:V.text,lineHeight:1,margin:0}}>TherapyLog</h1>
               <div style={{fontSize:9,color:V.text3,fontWeight:600,letterSpacing:".1em"}}>by IRONLOG</div>
             </div>
           </div>
-          {(()=>{const t=s.entries.find(e=>e.date===today());return t?<div style={{textAlign:"right"}}><div style={{fontSize:18,fontWeight:900,fontFamily:V.mono,color:t.mood<=3?V.danger:t.mood<=6?V.warm:V.green}}>{t.mood}<span style={{fontSize:9,color:V.text3}}>/10</span></div><div style={{fontSize:9,color:V.text3}}>today</div></div>:null;})()}
+          {(()=>{const t=s.entries.find(e=>e.date===today());return t?<div style={{textAlign:"right"}} aria-label={`Today's mood: ${t.mood} out of 10`}><div style={{fontSize:18,fontWeight:900,fontFamily:V.mono,color:t.mood<=3?V.danger:t.mood<=6?V.warm:V.green}}>{t.mood}<span style={{fontSize:9,color:V.text3}}>/10</span></div><div style={{fontSize:9,color:V.text3}}>today</div></div>:null;})()}
         </div>
-      </div>
-      <div style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
+      </header>
+      <main role="tabpanel" aria-label={tabs.find(t=>t.id===s.tab)?.label||"Content"} style={{flex:1,overflowY:"auto",WebkitOverflowScrolling:"touch",overscrollBehavior:"contain"}}>
         <div className="main-scroll" style={{paddingTop:16}}>
           {s.tab==="home"&&<HomeTab s={s} d={d} score={score} missions={missions}/>}
           {s.tab==="journal"&&<JournalTab s={s} d={d}/>}
           {s.tab==="sessions"&&<SessionsTab s={s} d={d}/>}
           {s.tab==="trends"&&<TrendsTab s={s}/>}
-          {s.tab==="settings"&&<SettingsTab s={s} d={d}/>}
+          {s.tab==="settings"&&<SettingsTab s={s} d={d} score={score}/>}
         </div>
-      </div>
-      <div className="tab-bar" style={{background:V.navBg,borderTop:`1px solid ${V.cardBorder}`,display:"flex",backdropFilter:"blur(12px)",flexShrink:0,paddingTop:8}}>
+      </main>
+      <nav className="tab-bar" role="tablist" aria-label="Main navigation" style={{background:V.navBg,borderTop:`1px solid ${V.cardBorder}`,display:"flex",backdropFilter:"blur(12px)",flexShrink:0,paddingTop:8}}>
         {tabs.map(tab=>{
           const active=s.tab===tab.id;
           return(
-            <button key={tab.id} onClick={()=>{Haptic.light();d({type:"TAB",tab:tab.id});}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer",padding:"4px 0",WebkitTapHighlightColor:"transparent"}}>
-              <span style={{fontSize:18,opacity:active?1:.5}}>{tab.icon}</span>
+            <button key={tab.id} role="tab" aria-selected={active} aria-label={tab.label} onClick={()=>{Haptic.light();d({type:"TAB",tab:tab.id});}} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:"none",border:"none",cursor:"pointer",padding:"4px 0",WebkitTapHighlightColor:"transparent",outline:"none"}} onKeyDown={(e)=>{
+              if(e.key==="ArrowRight"||e.key==="ArrowLeft"){
+                const idx=tabs.findIndex(t=>t.id===tab.id);
+                const next=e.key==="ArrowRight"?tabs[(idx+1)%tabs.length]:tabs[(idx-1+tabs.length)%tabs.length];
+                d({type:"TAB",tab:next.id});
+                e.currentTarget.parentElement?.querySelector(`[aria-label="${next.label}"]`)?.focus();
+              }
+            }}>
+              <span style={{fontSize:18,opacity:active?1:.5}} aria-hidden="true">{tab.icon}</span>
               <span style={{fontSize:9,fontWeight:active?700:500,color:active?V.accent:V.text3}}>{tab.label}</span>
-              {active&&<div style={{width:4,height:4,borderRadius:2,background:V.accent,marginTop:-2}}/>}
+              {active&&<div style={{width:4,height:4,borderRadius:2,background:V.accent,marginTop:-2}} aria-hidden="true"/>}
             </button>
           );
         })}
-      </div>
+      </nav>
       <ToastDisplay/><GlobalConfirm/><UndoToastBar/>{celebrating&&celebRank&&<LevelUpCelebration rank={celebRank} onDismiss={dismissLevel}/>}
     </div>
   );
 }
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+ReactDOM.createRoot(document.getElementById("root")).render(<ErrorBoundary><App/></ErrorBoundary>);
 </script>
 </body>
 </html>
