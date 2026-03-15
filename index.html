@@ -28,6 +28,11 @@ input[type=date]::-webkit-calendar-picker-indicator{filter:invert(0.6) sepia(1) 
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
 .fade-up{animation:fadeUp .3s ease both}
 textarea{resize:none;outline:none}
+input[type=range]{-webkit-appearance:none;appearance:none;cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#818cf8;border:2px solid #07060f;box-shadow:0 0 8px rgba(129,140,248,0.4);margin-top:-7px}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:#818cf8;border:2px solid #07060f;box-shadow:0 0 8px rgba(129,140,248,0.4)}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:4px}
+input[type=range]::-moz-range-track{height:8px;border-radius:4px;background:rgba(255,255,255,0.1)}
 :focus-visible{outline:2px solid #818cf8;outline-offset:2px;border-radius:4px}
 button:focus-visible{outline:2px solid #818cf8;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){.fade-up{animation:none!important}*{transition-duration:0.01ms!important}}
@@ -63,8 +68,9 @@ function showError(msg){
     .catch(function(){return loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js','ReactDOM');});
   })
   .then(function(){
-    return loadScript('https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js','Recharts')
-    .catch(function(){return loadScript('https://unpkg.com/recharts@2.5.0/umd/Recharts.js','Recharts');});
+    return loadScript('https://cdn.jsdelivr.net/npm/recharts@2.1.16/umd/Recharts.js','Recharts')
+    .catch(function(){return loadScript('https://unpkg.com/recharts@2.1.16/umd/Recharts.js','Recharts');})
+    .catch(function(){console.warn('Recharts failed to load — charts will be disabled');});
   })
   .then(function(){
     return loadScript('https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.0/babel.min.js','Babel')
@@ -73,6 +79,11 @@ function showError(msg){
   .then(function(){
     if(typeof React==='undefined')throw new Error('React not available');
     if(typeof Babel==='undefined')throw new Error('Babel not available');
+    // Recharts is optional — app degrades gracefully without charts
+    if(typeof Recharts==='undefined'){
+      window.Recharts={LineChart:function(){return null},Line:function(){return null},AreaChart:function(){return null},Area:function(){return null},XAxis:function(){return null},YAxis:function(){return null},CartesianGrid:function(){return null},Tooltip:function(){return null},ResponsiveContainer:function(){return null},ReferenceLine:function(){return null}};
+      console.warn('Recharts not available — charts disabled');
+    }
     var src=document.getElementById('app-src');
     if(!src)throw new Error('App source not found');
     var compiled;
@@ -85,7 +96,7 @@ function showError(msg){
 })();
 if('serviceWorker' in navigator){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('/sw.js').catch(function(){});
+    navigator.serviceWorker.register('./sw.js').catch(function(){});
   });
 }
 </script>
@@ -108,7 +119,7 @@ const sanitizeEntry=(text)=>{if(typeof text!=="string")return"";return text.repl
 
 // ─── Data validation ───
 const validateMood=(v)=>{const n=parseInt(v);return isNaN(n)?5:Math.max(1,Math.min(10,n));};
-const validateDate=(d)=>{if(!d||typeof d!=="string")return today();return/^\d{4}-\d{2}-\d{2}$/.test(d)?d:today();};
+const validateDate=(d)=>{if(!d||typeof d!=="string")return"";return/^\d{4}-\d{2}-\d{2}$/.test(d)?d:"";};
 
 // ─── Error Boundary ───
 class ErrorBoundary extends React.Component{
@@ -409,7 +420,7 @@ function UndoToastBar(){
 const EMOTIONS=[
   {e:"😊",label:"Happy",valence:1},{e:"😌",label:"Calm",valence:1},{e:"🤩",label:"Excited",valence:1},{e:"🥰",label:"Grateful",valence:1},
   {e:"😔",label:"Sad",valence:-1},{e:"😰",label:"Anxious",valence:-1},{e:"😤",label:"Angry",valence:-1},{e:"😶",label:"Numb",valence:-1},
-  {e:"😴",label:"Tired",valence:0},{e:"😕",label:"Confused",valence:0},{e:"😞",label:"Disappointed",valence:-1},{e:"😊",label:"Content",valence:1},
+  {e:"😴",label:"Tired",valence:0},{e:"😕",label:"Confused",valence:0},{e:"😞",label:"Disappointed",valence:-1},{e:"☺️",label:"Content",valence:1},
   {e:"😨",label:"Scared",valence:-1},{e:"🥺",label:"Vulnerable",valence:-1},{e:"💪",label:"Empowered",valence:1},{e:"😑",label:"Overwhelmed",valence:-1},
 ];
 const COPING=[
@@ -565,7 +576,7 @@ function HomeTab({s,d,score,missions}){
   const todayEntry=s.entries.find(e=>e.date===td);
   const recent7=s.entries.filter(e=>e.date>=ago(6)&&e.mood);
   const avgMood=recent7.length?Math.round(recent7.reduce((a,e)=>a+(e.mood||0),0)/recent7.length*10)/10:0;
-  const streak=(()=>{let c=0,i=0;while(s.entries.some(e=>e.date===ago(i))){c++;i++;}return c;})();
+  const streak=(()=>{let c=0,i=0;while(s.entries.some(e=>e.date===ago(i)&&e.mood)){c++;i++;}return c;})();
   const todayGratitude=s.gratitude.filter(g=>g.date===td);
   const moodColor=avgMood<=3?V.danger:avgMood<=5?V.warm:avgMood<=7?V.accent:V.green;
   const nextSession=s.profile?.nextSession;
@@ -858,7 +869,7 @@ function SessionsTab({s,d}){
   const toggleTopic=(t)=>setForm(f=>({...f,topics:f.topics.includes(t)?f.topics.filter(x=>x!==t):[...f.topics,t]}));
 
   const save=()=>{
-    const session={id:uid(),date:validateDate(form.date),therapist:sanitize(form.therapist),duration:Math.max(1,Math.min(480,parseInt(form.duration)||50)),notes:sanitizeEntry(form.notes),homework:sanitizeEntry(form.homework),mood_before:validateMood(form.mood_before),mood_after:validateMood(form.mood_after),topics:form.topics.filter(t=>TOPICS.includes(t))};
+    const session={id:uid(),date:validateDate(form.date)||today(),therapist:sanitize(form.therapist),duration:Math.max(1,Math.min(480,parseInt(form.duration)||50)),notes:sanitizeEntry(form.notes),homework:sanitizeEntry(form.homework),mood_before:validateMood(form.mood_before),mood_after:validateMood(form.mood_after),topics:form.topics.filter(t=>TOPICS.includes(t))};
     d({type:"ADD_SESSION",session});Toast.show("Session logged 🛋️",V.accent2);Haptic.success();setShowNew(false);
     setForm({date:today(),therapist:"",duration:"50",notes:"",homework:"",mood_before:"5",mood_after:"6",topics:[]});
   };
@@ -1204,9 +1215,9 @@ function App(){
   const missions=useMemo(()=>getDailyMissions(s),[s.entries,s.sessions,s.gratitude]);
   const {celebrating,celebRank,dismiss:dismissLevel}=useLevelUp(score,"tl-last-level");
   useEffect(()=>{
-    const entries=LS.get("tl-entries")||[];
-    const sessions=LS.get("tl-sessions")||[];
-    const gratitude=LS.get("tl-gratitude")||[];
+    const entries=Array.isArray(LS.get("tl-entries"))?LS.get("tl-entries"):[];
+    const sessions=Array.isArray(LS.get("tl-sessions"))?LS.get("tl-sessions"):[];
+    const gratitude=Array.isArray(LS.get("tl-gratitude"))?LS.get("tl-gratitude"):[];
     const profile=LS.get("tl-profile")||{};
     const onboarded=!!(LS.get("ft-session-token")||Cookie.get("ironlog_session")||LS.get("ft-onb")||LS.get("tl-onb"));
     d({type:"INIT",p:{entries,sessions,gratitude,profile,onboarded:true}});
