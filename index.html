@@ -118,9 +118,154 @@ if('serviceWorker' in navigator){
 const{useState,useEffect,useReducer,useCallback,useMemo,useRef,memo}=React;
 const{LineChart,Line,AreaChart,Area,XAxis,YAxis,CartesianGrid,Tooltip,ResponsiveContainer,ReferenceLine}=Recharts;
 
-const LS={get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn("Storage full or unavailable");}}};
-const Cookie={get:(n)=>{const m=document.cookie.match(new RegExp("(^| )"+n+"=([^;]+)"));return m?decodeURIComponent(m[2]):null;}};
+const LS={
+  get:(k)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}},
+  set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch(e){console.warn("Error:",e);}},
+};
+// ─── Cookie (SSO across .ironlog.space) ───
+const Cookie={
+  get:(name)=>{const m=document.cookie.match(new RegExp("(^| )"+name+"=([^;]+)"));return m?decodeURIComponent(m[2]):null;},
+  set:(name,value,days=30)=>{const exp=new Date(Date.now()+days*864e5).toUTCString();document.cookie=`${name}=${encodeURIComponent(value)};
 const uid=()=>Math.random().toString(36).slice(2)+Date.now().toString(36);
+
+const SYNC_URL=LS.get("ft-api-url")||"https://api.ironlog.space";
+const AuthToken={
+  // Legacy — kept for backward compat during migration
+  init:(email)=>{},
+  generate:(email)=>"",
+  getHeaders:(email)=>{
+    const sessionToken=LS.get("ft-session-token");
+    return{
+      "Content-Type":"application/json",
+      ...(sessionToken?{"X-Session-Token":sessionToken}:{}),
+      "X-Auth-Token":email||"legacy",
+    };
+const SessionManager={
+  // Create session after signup (called with email + PIN)
+  create:async(email,pin,deviceId)=>{
+    try{
+      const res=await fetch(`${SYNC_URL}/api/auth/session`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"create",email:email.toLowerCase(),pin,deviceId:deviceId||LS.get("ft-device-id")})
+      });
+      const json=await res.json();
+      if(json.success&&json.token){
+        LS.set("ft-session-token",json.token);
+        LS.set("ft-session-email",email.toLowerCase());
+        LS.set("ft-session-expires",json.expires_at);
+        Cookie.set("ironlog_session",json.token,30); // SSO across subdomains
+        return{success:true,token:json.token};
+      }
+      return{success:false,error:json.error,attempts_remaining:json.attempts_remaining};
+    }catch(e){return{success:false,error:"Connection failed"};}
+  },
+  // Check if we have a valid session
+  hasSession:()=>{
+    const token=LS.get("ft-session-token");
+    const expires=LS.get("ft-session-expires");
+    if(!token)return false;
+    if(expires&&new Date(expires)<new Date()){LS.set("ft-session-token",null);return false;}
+    return true;
+  },
+  // Revoke (logout)
+  revoke:async()=>{
+    const token=LS.get("ft-session-token");
+    if(token){try{await fetch(`${SYNC_URL}/api/auth/session`,{method:"POST",headers:{"Content-Type":"application/json","X-Session-Token":token},body:JSON.stringify({action:"revoke",token})});}catch(e){}}
+    SentryUtil.breadcrumb("User signed out","auth");SentryUtil.reset();
+    LS.set("ft-session-token",null);LS.set("ft-session-email",null);LS.set("ft-session-expires",null);LS.set("ft-is-admin",null);
+    Cookie.clear("ironlog_session"); // Clear SSO cookie
+  },
+  // Check admin status (silent — never exposes admin to non-admins)
+  checkAdmin:async()=>{
+    const token=LS.get("ft-session-token");
+    const email=LS.get("ft-session-email")||LS.get("ft-profile")?.email;
+    if(!token&&!email)return false;
+    try{
+      const headers={"Content-Type":"application/json"};
+      if(token)headers["X-Session-Token"]=token;
+      if(email)headers["X-Auth-Token"]=email;
+      const res=await fetch(`${SYNC_URL}/api/admin`,{method:"POST",headers,
+        body:JSON.stringify({action:"check"})});
+      if(res.ok){const json=await res.json();if(json.isAdmin){LS.set("ft-is-admin",true);return true;}}
+      LS.set("ft-is-admin",null);return false;
+    }catch(e){return false;}
+  },
+  // ─── Forgot PIN (satellite apps — canonical /api/auth/session) ───
+  sendResetCode:async(email)=>{
+    try{
+      const res=await fetch(`${SYNC_URL}/api/auth/session`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"send_reset_code",email:email.toLowerCase()})});
+      return res.ok?{success:true}:{success:false,error:"Email not found"};
+    }catch(e){return{success:false,error:"Connection failed"};}
+  },
+  verifyResetCode:async(email,code)=>{
+    try{
+      const res=await fetch(`${SYNC_URL}/api/auth/session`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"verify_reset_code",email:email.toLowerCase(),code})});
+      return res.ok?{success:true}:{success:false,error:"Invalid code"};
+    }catch(e){return{success:false,error:"Connection failed"};}
+  },
+  setNewPin:async(email,code,newPin)=>{
+    try{
+      const res=await fetch(`${SYNC_URL}/api/auth/session`,{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"set_new_pin",email:email.toLowerCase(),resetToken:code,newPin})});
+      return res.ok?{success:true}:{success:false,error:"Reset failed"};
+    }catch(e){return{success:false,error:"Connection failed"};}
+  },
+};
+// ─── Cloud Sync (therapylog) ───
+let _syncTimer=null;let _syncInFlight=false;
+const CloudSync={
+  push:async(state)=>{
+    if(_syncInFlight)return;
+    const email=state.profile?.email||LS.get("ft-session-email");
+    if(!email)return;
+    _syncInFlight=true;
+    const payload=JSON.stringify({
+      email,
+      deviceId:LS.get("ft-device-id")||"unknown",
+      appVersion:"therapylog-1.0",
+      workouts:[],nutrition:[],body:[],photos:[],checkins:[],milestones:[],
+      settings:{goals:null,units:null,schedule:null,exercises:null,
+        phases:[],injuries:[],privacy:{},supplements:[],accountability:[],gamification:null},
+    });
+    try{
+      const res=await fetch(`${SYNC_URL}/api/sync/push`,{method:"POST",headers:AuthToken.getHeaders(email),body:payload});
+      if(res.status===401){LS.set("ft-session-token",null);_syncInFlight=false;return;}
+      if(!res.ok)throw new Error("Push failed");
+    }catch(e){console.warn("Sync push error:",e);}
+    _syncInFlight=false;
+  },
+  debouncedPush:(state)=>{
+    if(_syncTimer)clearTimeout(_syncTimer);
+    _syncTimer=setTimeout(()=>CloudSync.push(state),3000);
+  },
+  pull:async(email,deviceId,pin)=>{
+    try{
+      const res=await fetch(`${SYNC_URL}/api/sync/pull`,{
+        method:"POST",
+        headers:AuthToken.getHeaders(email),
+        body:JSON.stringify({email,deviceId,pin:pin||null}),
+      });
+      const json=await res.json();
+      if(res.status===403&&json.pin_required)return{pin_required:true};
+      if(res.status===403)return{wrong_pin:true,attempts_remaining:json.attempts_remaining,locked:json.locked};
+      if(res.status===429)return{locked:true,retry_minutes:json.retry_minutes};
+      if(json.success===false)return{error:json.error||"Account not found"};
+      if(!res.ok)return{error:"Server error"};
+      if(json.success)return json;
+      return null;
+    }catch(e){return{error:"Connection failed"};}
+  },
+};
+// ─── Device ID (persistent per device) ───
+if(!LS.get("ft-device-id")){
+  LS.set("ft-device-id","dev_"+Math.random().toString(36).slice(2,10)+Date.now().toString(36));
+}
+
 const today=()=>new Date().toISOString().split("T")[0];
 const ago=(n)=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split("T")[0];};
 const fmtFull=(d)=>{try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}};
@@ -1489,12 +1634,40 @@ function App(){
   const missions=useMemo(()=>getDailyMissions(s),[s.entries,s.sessions,s.gratitude]);
   const {celebrating,celebRank,dismiss:dismissLevel}=useLevelUp(score,"tl-last-level");
   useEffect(()=>{
-    const entries=Array.isArray(LS.get("tl-entries"))?LS.get("tl-entries"):[];
-    const sessions=Array.isArray(LS.get("tl-sessions"))?LS.get("tl-sessions"):[];
-    const gratitude=Array.isArray(LS.get("tl-gratitude"))?LS.get("tl-gratitude"):[];
-    const profile=LS.get("tl-profile")||{};
-    const onboarded=!!(LS.get("ft-session-token")||Cookie.get("ironlog_session")||LS.get("ft-onb")||LS.get("tl-onb"));
-    d({type:"INIT",p:{entries,sessions,gratitude,profile,onboarded:true}});
+    (async()=>{
+      try{
+        const entries=Array.isArray(LS.get("tl-entries"))?LS.get("tl-entries"):[];
+        const sessions=Array.isArray(LS.get("tl-sessions"))?LS.get("tl-sessions"):[];
+        const gratitude=Array.isArray(LS.get("tl-gratitude"))?LS.get("tl-gratitude"):[];
+        const localProfile=LS.get("tl-profile")||{};
+        // ── SSO: try silent login from IronLog session ──
+        if(!LS.get("ft-session-token")){
+          const ssoToken=Cookie.get("ironlog_session");
+          if(ssoToken){
+            try{
+              const vRes=await fetch(`${SYNC_URL}/api/auth/session`,{method:"POST",
+                headers:{"Content-Type":"application/json","X-Session-Token":ssoToken},
+                body:JSON.stringify({action:"validate"})});
+              const vJson=await vRes.json();
+              if(vJson.valid&&vJson.email){
+                const deviceId=LS.get("ft-device-id")||uid();
+                LS.set("ft-device-id",deviceId);
+                LS.set("ft-session-token",ssoToken);
+                LS.set("ft-session-email",vJson.email);
+                const pull=await CloudSync.pull(vJson.email,deviceId,null);
+                if(pull?.success&&pull?.data?.profile){
+                  LS.set("ft-profile",pull.data.profile);
+                }
+              }
+            }catch(e){/* SSO failed silently */}
+          }
+        }
+        const onboarded=!!(LS.get("ft-session-token")||Cookie.get("ironlog_session")||LS.get("ft-onb")||LS.get("tl-onb"));
+        d({type:"INIT",p:{entries,sessions,gratitude,profile:localProfile,onboarded:true}});
+      }catch(e){
+        d({type:"INIT",p:{entries:[],sessions:[],gratitude:[],profile:{},onboarded:true}});
+      }
+    })();
   },[]);
   useEffect(()=>{
     if(!s.loaded)return;
