@@ -271,8 +271,9 @@ if(!LS.get("ft-device-id")){
   LS.set("ft-device-id","dev_"+Math.random().toString(36).slice(2,10)+Date.now().toString(36));
 }
 
-const today=()=>new Date().toISOString().split("T")[0];
-const ago=(n)=>{const d=new Date();d.setDate(d.getDate()-n);return d.toISOString().split("T")[0];};
+const localDate=(d)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const today=()=>localDate(new Date());
+const ago=(n)=>{const d=new Date();d.setDate(d.getDate()-n);return localDate(d);};
 const fmtFull=(d)=>{try{return new Date(d+"T12:00:00").toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"});}catch(e){return d;}};
 const fmtShort=(d)=>{try{const dt=new Date(d+"T12:00:00");return`${dt.getMonth()+1}/${dt.getDate()}`;}catch(e){return d;}};
 const fmtTime=()=>new Date().toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"});
@@ -373,7 +374,7 @@ function calcScore(s){
   xp+=(s.sessions||[]).length*50;
   // Streak milestones
   let streak=0;const days=new Set(entries.filter(e=>e.mood).map(e=>e.date));
-  for(let i=0;i<90;i++){const d=new Date();d.setDate(d.getDate()-i);if(days.has(d.toISOString().split("T")[0]))streak++;else break;}
+  for(let i=0;i<90;i++){if(days.has(ago(i)))streak++;else break;}
   if(streak>=7)xp+=100;if(streak>=14)xp+=200;if(streak>=30)xp+=500;
   const rank=[...IRON_RANKS].reverse().find(r=>xp>=r.xpNeeded)||IRON_RANKS[0];
   const nextRank=IRON_RANKS.find(r=>r.level===rank.level+1);
@@ -389,7 +390,7 @@ function getDailyMissions(s){
   const todayCheckin=(s.entries||[]).some(e=>e.date===td&&e.mood);
   const todayJournal=(s.entries||[]).some(e=>e.date===td&&e.note&&e.note.length>30);
   const todayGratCount=(s.gratitude||[]).filter(g=>g.date===td).length;
-  const sessionThisWeek=(()=>{const d=new Date();const wStart=new Date(d);wStart.setDate(d.getDate()-d.getDay());return(s.sessions||[]).some(sess=>sess.date>=wStart.toISOString().split("T")[0]);})();
+  const sessionThisWeek=(()=>{const d=new Date();const wStart=new Date(d);wStart.setDate(d.getDate()-d.getDay());return(s.sessions||[]).some(sess=>sess.date>=localDate(wStart));})();
   const moodToday=(s.entries||[]).find(e=>e.date===td&&e.mood);
   const goodMood=moodToday&&moodToday.mood>=7;
   return[

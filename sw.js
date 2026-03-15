@@ -1,4 +1,4 @@
-const CACHE_NAME = 'therapylog-v4';
+const CACHE_NAME = 'therapylog-v5';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -75,7 +75,11 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           return response;
         })
-        .catch(() => caches.match(request).then((r) => r || caches.match('/')))
+        .catch(() =>
+          caches.match(request).then((r) => r || caches.match('/').then((fallback) =>
+            fallback || new Response('<!DOCTYPE html><html><body style="background:#07060f;color:#e8e4f0;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;text-align:center"><div><div style="font-size:48px;margin-bottom:16px">📡</div><div style="font-size:18px;font-weight:700;margin-bottom:8px">You\'re offline</div><div style="font-size:13px;color:#a099b8">Connect to the internet and reload</div></div></body></html>', {headers: {'Content-Type': 'text/html'}})
+          ))
+        )
     );
     return;
   }
@@ -129,7 +133,7 @@ self.addEventListener('fetch', (event) => {
         }
         return response;
       })
-      .catch(() => caches.match(request))
+      .catch(() => caches.match(request).then((r) => r || Response.error()))
   );
 });
 
