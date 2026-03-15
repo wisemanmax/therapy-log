@@ -1,4 +1,4 @@
-const CACHE_NAME = 'therapylog-v2';
+const CACHE_NAME = 'therapylog-v3';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -9,7 +9,7 @@ const STATIC_ASSETS = [
 const CDN_ASSETS = [
   'https://cdn.jsdelivr.net/npm/react@18.3.1/umd/react.production.min.js',
   'https://cdn.jsdelivr.net/npm/react-dom@18.3.1/umd/react-dom.production.min.js',
-  'https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.js',
+  'https://cdn.jsdelivr.net/npm/recharts@2.1.16/umd/Recharts.js',
   'https://cdn.jsdelivr.net/npm/@babel/standalone@7.26.0/babel.min.js',
 ];
 
