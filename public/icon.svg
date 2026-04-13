@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#130f2a"/>
+      <stop offset="100%" stop-color="#07060f"/>
+    </radialGradient>
+    <radialGradient id="glowP" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="7" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="softglow">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="subtleglow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glowP)"/>
+
+  <!-- Outer decorative orbit ring -->
+  <circle cx="256" cy="242" r="155" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.12"/>
+  <circle cx="256" cy="242" r="155" fill="none" stroke="#818cf8" stroke-width="1"
+    stroke-dasharray="8 12" opacity="0.25"
+    transform="rotate(-30 256 242)"/>
+
+  <!-- Brain shape - two lobes -->
+  <!-- Left lobe -->
+  <path d="
+    M 256 148
+    C 240 142, 210 142, 196 158
+    C 178 168, 168 186, 168 206
+    C 162 220, 162 238, 170 252
+    C 164 268, 168 286, 180 296
+    C 192 312, 212 318, 228 314
+    C 238 322, 248 326, 256 324
+    L 256 148 Z"
+    fill="#1a1630" stroke="#818cf8" stroke-width="2.5" stroke-opacity="0.6"/>
+
+  <!-- Right lobe -->
+  <path d="
+    M 256 148
+    C 272 142, 302 142, 316 158
+    C 334 168, 344 186, 344 206
+    C 350 220, 350 238, 342 252
+    C 348 268, 344 286, 332 296
+    C 320 312, 300 318, 284 314
+    C 274 322, 264 326, 256 324
+    L 256 148 Z"
+    fill="#1a1630" stroke="#818cf8" stroke-width="2.5" stroke-opacity="0.6"/>
+
+  <!-- Brain fold lines - left lobe -->
+  <path d="M 210 175 Q 200 196 206 218" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 188 228 Q 182 248 190 268" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 210 285 Q 222 300 236 302" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  <!-- Brain fold lines - right lobe -->
+  <path d="M 302 175 Q 312 196 306 218" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.4"/>
+  <path d="M 324 228 Q 330 248 322 268" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+  <path d="M 302 285 Q 290 300 276 302" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" opacity="0.35"/>
+
+  <!-- Center divider -->
+  <line x1="256" y1="158" x2="256" y2="318" stroke="#818cf8" stroke-width="2" opacity="0.3"/>
+
+  <!-- Glow fill on brain -->
+  <path d="
+    M 256 148
+    C 240 142, 210 142, 196 158
+    C 178 168, 168 186, 168 206
+    C 162 220, 162 238, 170 252
+    C 164 268, 168 286, 180 296
+    C 192 312, 212 318, 228 314
+    C 238 322, 248 326, 256 324
+    C 264 326, 274 322, 284 314
+    C 300 318, 320 312, 332 296
+    C 344 286, 348 268, 342 252
+    C 350 238, 350 220, 344 206
+    C 344 186, 334 168, 316 158
+    C 302 142, 272 142, 256 148 Z"
+    fill="#818cf8" opacity="0.06" filter="url(#glow)"/>
+
+  <!-- Heart pulse line at the bottom -->
+  <!-- Background line -->
+  <line x1="138" y1="372" x2="374" y2="372" stroke="#2a2040" stroke-width="2.5"/>
+  <!-- Pulse wave -->
+  <polyline
+    points="138,372 185,372 200,372 215,344 228,396 242,360 256,372 280,372 374,372"
+    fill="none" stroke="#c084fc" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"
+    filter="url(#softglow)" opacity="0.9"/>
+  <!-- Pulse dot at peak -->
+  <circle cx="215" cy="344" r="4.5" fill="#c084fc" filter="url(#softglow)"/>
+  <circle cx="228" cy="396" r="4.5" fill="#c084fc" filter="url(#softglow)"/>
+
+  <!-- Small heart icon inside brain center -->
+  <path d="M 256 234 C 256 234 244 224 238 230 C 232 236 238 246 256 258 C 274 246 280 236 274 230 C 268 224 256 234 256 234 Z"
+    fill="#818cf8" opacity="0.7" filter="url(#subtleglow)"/>
+</svg>

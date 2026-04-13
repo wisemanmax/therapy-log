@@ -1,0 +1,164 @@
+/* --- Global Reset & Base --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  background: #07060f;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+@media (min-width: 768px) {
+  html, body, #root {
+    position: static;
+    overflow: auto;
+    height: 100vh;
+  }
+}
+
+@supports (-webkit-touch-callout: none) {
+  html, body, #root {
+    height: -webkit-fill-available;
+  }
+}
+
+/* --- Safe Area Handling --- */
+.sheet-head {
+  padding-top: max(16px, env(safe-area-inset-top, 0px));
+  padding-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.sheet-footer {
+  padding: 14px 20px;
+  padding-bottom: max(20px, env(safe-area-inset-bottom, 16px));
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* --- Typography & Base Body --- */
+body {
+  font-family: 'Outfit', sans-serif;
+  color: #e8e4f0;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+input, select, button, textarea {
+  font-family: inherit;
+}
+
+/* --- Number Input Spinners --- */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type=number] {
+  -moz-appearance: textfield;
+}
+
+/* --- Date Picker --- */
+input[type=date]::-webkit-calendar-picker-indicator {
+  filter: invert(0.6) sepia(1) saturate(3) hue-rotate(230deg);
+}
+
+/* --- Range Slider --- */
+textarea { resize: none; outline: none; }
+input[type=range] { -webkit-appearance: none; appearance: none; cursor: pointer; }
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+  background: #818cf8; border: 2.5px solid #07060f;
+  box-shadow: 0 0 12px rgba(129,140,248,0.5), 0 2px 8px rgba(0,0,0,0.3);
+  margin-top: -8px; transition: transform .15s, box-shadow .15s;
+}
+input[type=range]::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+  box-shadow: 0 0 16px rgba(129,140,248,0.6), 0 2px 12px rgba(0,0,0,0.4);
+}
+input[type=range]::-moz-range-thumb {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: #818cf8; border: 2.5px solid #07060f;
+  box-shadow: 0 0 12px rgba(129,140,248,0.5);
+}
+input[type=range]::-webkit-slider-runnable-track { height: 8px; border-radius: 4px; }
+input[type=range]::-moz-range-track { height: 8px; border-radius: 4px; background: rgba(255,255,255,0.1); }
+
+/* --- Focus visible --- */
+*:focus-visible {
+  outline: 2px solid #818cf8;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* --- Scrollbar Styling --- */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.08); border-radius: 3px; }
+
+@media (min-width: 768px) {
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.12); }
+}
+
+/* --- Keyframe Animations --- */
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideDown { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+@keyframes slideUpSheet { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes shimmer { 0% { background-position: -200px 0; } 100% { background-position: 200px 0; } }
+@keyframes breathe { 0%, 100% { transform: scale(1); opacity: .7; } 50% { transform: scale(1.08); opacity: 1; } }
+@keyframes gentleFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes countUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes ringPulse { 0% { box-shadow: 0 0 0 0 rgba(129,140,248,0.4); } 70% { box-shadow: 0 0 0 8px rgba(129,140,248,0); } 100% { box-shadow: 0 0 0 0 rgba(129,140,248,0); } }
+
+.fade-up { animation: fadeUp .35s cubic-bezier(.22,1,.36,1) both; }
+.slide-up { animation: slideUp .4s cubic-bezier(.22,1,.36,1) both; }
+.scale-in { animation: scaleIn .3s cubic-bezier(.22,1,.36,1) both; }
+
+/* --- Landscape Lock --- */
+#landscape-lock {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: #07060f;
+  z-index: 99999;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  font-family: 'Outfit', sans-serif;
+}
+
+@media (orientation: landscape) and (max-height: 500px) and (max-width: 1024px) {
+  #root { display: none !important; }
+  #landscape-lock { display: flex !important; }
+}
+
+/* --- Reduced Motion --- */
+@media (prefers-reduced-motion: reduce) {
+  .fade-up, .slide-up, .scale-in { animation: none !important; }
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
