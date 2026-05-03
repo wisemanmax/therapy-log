@@ -1,4 +1,4 @@
-const CACHE_NAME = 'therapylog-v5';
+const CACHE_NAME = 'therapylog-v6';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
